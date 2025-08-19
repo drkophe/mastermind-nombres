@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mastermind Nombres - Jeu Multijoueur</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 0;
+            min-height: 600px;
+        }
+
+        .game-area {
+            padding: 20px;
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            border-left: 1px solid #e9ecef;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .join-section {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .join-section input {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            margin: 5px;
+            font-size: 16px;
+            width: 200px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .host-controls {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .host-controls h3 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .game-mode {
+            margin: 10px 0;
+        }
+
+        .game-mode label {
+            display: block;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+
+        .custom-number {
+            margin-top: 10px;
+        }
+
+        .custom-number input {
+            width: 100px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+
+        .guess-section {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .guess-input {
+            padding: 15px;
+            font-size: 24px;
+            text-align: center;
+            border: 3px solid #ddd;
+            border-radius: 10px;
+            width: 150px;
+            margin: 10px;
+            letter-spacing: 5px;
+        }
+
+        .guess-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .attempts-section {
+            margin-top: 20px;
+        }
+
+        .attempt {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .attempt-guess {
+            font-size: 20px;
+            font-weight: bold;
+            font-family: monospace;
+            letter-spacing: 3px;
+            color: #333;
+        }
+
+        .attempt-result {
+            display: flex;
+            gap: 15px;
+        }
+
+        .result-badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .correct-position {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .correct-number {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .players-section {
+            padding: 15px;
+            flex-grow: 1;
+        }
+
+        .players-section h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .player {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .player.host {
+            border-left-color: #ffc107;
+        }
+
+        .chat-section {
+            border-top: 1px solid #e9ecef;
+            padding: 15px;
+            height: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            max-height: 200px;
+        }
+
+        .chat-message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+            background: #f8f9fa;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 5px;
+        }
+
+        .chat-input input {
+            flex-grow: 1;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .game-stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                border-left: none;
+                border-top: 1px solid #e9ecef;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Mastermind Nombres</h1>
+            <p>Devinez le nombre à 4 chiffres (0001-9999) !</p>
+        </div>
+
+        <div class="main-content">
+            <div class="game-area">
+                <!-- Section de connexion -->
+                <div id="join-section" class="join-section">
+                    <h2>Rejoindre la partie</h2>
+                    <input type="text" id="player-name" placeholder="Votre nom" maxlength="20">
+                    <button class="btn btn-success" onclick="joinGame()">Rejoindre</button>
+                </div>
+
+                <!-- Contrôles de l'hôte -->
+                <div id="host-controls" class="host-controls hidden">
+                    <h3>🏠 Contrôles de l'hôte</h3>
+                    <div class="game-mode">
+                        <label>
+                            <input type="radio" name="mode" value="random" checked> 
+                            Nombre aléatoire
+                        </label>
+                        <label>
+                            <input type="radio" name="mode" value="manual"> 
+                            Nombre personnalisé
+                        </label>
+                        <div class="custom-number">
+                            <input type="text" id="custom-number" placeholder="0001-9999" maxlength="4" pattern="[0-9]{4}">
+                        </div>
+                    </div>
+                    <button class="btn btn-success" onclick="startGame()">Démarrer une nouvelle partie</button>
+                </div>
+
+                <!-- Section de jeu -->
+                <div id="game-section" class="hidden">
+                    <div class="guess-section">
+                        <h3>Votre proposition</h3>
+                        <input type="text" id="guess-input" class="guess-input" placeholder="0000" maxlength="4" pattern="[0-9]{4}">
+                        <br>
+                        <button class="btn btn-warning" onclick="makeGuess()">Proposer</button>
+                    </div>
+
+                    <div class="game-stats">
+                        <div class="stat">
+                            <div class="stat-number" id="attempts-count">0</div>
+                            <div class="stat-label">Tentatives</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number" id="max-attempts">10</div>
+                            <div class="stat-label">Maximum</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number" id="players-count">0</div>
+                            <div class="stat-label">Joueurs</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Messages de statut -->
+                <div id="status-message"></div>
+
+                <!-- Historique des tentatives -->
+                <div id="attempts-section" class="attempts-section">
+                    <h3>Historique des tentatives</h3>
+                    <div id="attempts-list"></div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <!-- Section des joueurs -->
+                <div class="players-section">
+                    <h3>👥 Joueurs connectés</h3>
+                    <div id="players-list"></div>
+                </div>
+
+                <!-- Section de chat -->
+                <div class="chat-section">
+                    <h3>💬 Chat</h3>
+                    <div id="chat-messages" class="chat-messages"></div>
+                    <div class="chat-input">
+                        <input type="text" id="chat-input" placeholder="Tapez votre message..." maxlength="200">
+                        <button class="btn" onclick="sendMessage()">Envoyer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let isHost = false;
+        let gameActive = false;
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            // Événements des touches
+            document.getElementById('player-name').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') joinGame();
+            });
+
+            document.getElementById('guess-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') makeGuess();
+            });
+
+            document.getElementById('chat-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
+
+            // Validation des entrées numériques
+            document.getElementById('guess-input').addEventListener('input', function(e) {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            });
+
+            document.getElementById('custom-number').addEventListener('input', function(e) {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            });
+        });
+
+        function joinGame() {
+            const playerName = document.getElementById('player-name').value.trim();
+            if (!playerName) {
+                showStatus('Veuillez entrer votre nom', 'error');
+                return;
+            }
+
+            // Connexion au serveur
+            socket = io();
+
+            socket.emit('join-game', playerName);
+
+            // Événements socket
+            socket.on('host-status', function(isHostStatus) {
+                isHost = isHostStatus;
+                if (isHost) {
+                    document.getElementById('host-controls').classList.remove('hidden');
+                    showStatus('Vous êtes l\'hôte de la partie', 'success');
+                }
+            });
+
+            socket.on('game-state', function(gameState) {
+                updateGameState(gameState);
+            });
+
+            socket.on('player-joined', function(data) {
+                updatePlayersList(data.players);
+                showStatus(`${data.player.name} a rejoint la partie`, 'info');
+            });
+
+            socket.on('player-left', function(data) {
+                updatePlayersList(data.players);
+            });
+
+            socket.on('game-started', function(data) {
+                gameActive = true;
+                document.getElementById('game-section').classList.remove('hidden');
+                document.getElementById('attempts-list').innerHTML = '';
+                showStatus(data.message, 'success');
+                document.getElementById('guess-input').focus();
+            });
+
+            socket.on('new-attempt', function(attempt) {
+                addAttempt(attempt);
+            });
+
+            socket.on('game-state-update', function(data) {
+                updateStats(data);
+            });
+
+            socket.on('game-won', function(data) {
+                gameActive = false;
+                showStatus(`🎉 ${data.winner} a trouvé le nombre ${data.targetNumber} en ${data.attempts} tentatives !`, 'success');
+            });
+
+            socket.on('game-over', function(data) {
+                gameActive = false;
+                showStatus(`😢 Partie terminée ! Le nombre était ${data.targetNumber}`, 'error');
+            });
+
+            socket.on('chat-message', function(data) {
+                addChatMessage(data);
+            });
+
+            socket.on('error', function(message) {
+                showStatus(message, 'error');
+            });
+
+            // Masquer la section de connexion
+            document.getElementById('join-section').classList.add('hidden');
+        }
+
+        function startGame() {
+            if (!isHost) return;
+
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+            const customNumber = document.getElementById('custom-number').value;
+
+            if (mode === 'manual') {
+                if (!customNumber || customNumber.length !== 4 || !/^\d{4}$/.test(customNumber)) {
+                    showStatus('Veuillez entrer un nombre à 4 chiffres', 'error');
+                    return;
+                }
+                socket.emit('start-game', { mode: 'manual', customNumber });
+            } else {
+                socket.emit('start-game', { mode: 'random' });
+            }
+        }
+
+        function makeGuess() {
+            if (!gameActive) return;
+
+            const guess = document.getElementById('guess-input').value;
+            if (!guess || guess.length !== 4 || !/^\d{4}$/.test(guess)) {
+                showStatus('Veuillez entrer un nombre à 4 chiffres', 'error');
+                return;
+            }
+
+            socket.emit('make-guess', guess);
+            document.getElementById('guess-input').value = '';
+        }
+
+        function sendMessage() {
+            const message = document.getElementById('chat-input').value.trim();
+            if (!message) return;
+
+            socket.emit('chat-message', message);
+            document.getElementById('chat-input').value = '';
+        }
+
+        function updateGameState(gameState) {
+            gameActive = gameState.isGameActive;
+            updatePlayersList(gameState.players);
+            
+            if (gameState.attempts) {
+                gameState.attempts.forEach(attempt => addAttempt(attempt));
+            }
+        }
+
+        function updatePlayersList(players) {
+            const playersList = document.getElementById('players-list');
+            playersList.innerHTML = '';
+
+            Object.values(players).forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = `player ${player.id === socket.id ? 'host' : ''}`;
+                playerDiv.innerHTML = `
+                    <strong>${player.name}</strong> 
+                    ${player.id === socket.id ? '(Vous)' : ''}
+                    <span style="float: right;">🏆 ${player.score}</span>
+                `;
+                playersList.appendChild(playerDiv);
+            });
+
+            document.getElementById('players-count').textContent = Object.keys(players).length;
+        }
+
+        function addAttempt(attempt) {
+            const attemptsList = document.getElementById('attempts-list');
+            const attemptDiv = document.createElement('div');
+            attemptDiv.className = 'attempt fade-in';
+            
+            attemptDiv.innerHTML = `
+                <div>
+                    <div style="font-size: 12px; color: #666;">${attempt.playerName} - ${attempt.timestamp}</div>
+                    <div class="attempt-guess">${attempt.guess}</div>
+                </div>
+                <div class="attempt-result">
+                    <span class="result-badge correct-position">
+                        ✓ ${attempt.result.correctPosition} bien placé${attempt.result.correctPosition !== 1 ? 's' : ''}
+                    </span>
+                    <span class="result-badge correct-number">
+                        ~ ${attempt.result.correctNumber} mal placé${attempt.result.correctNumber !== 1 ? 's' : ''}
+                    </span>
+                </div>
+            `;
+            
+            attemptsList.insertBefore(attemptDiv, attemptsList.firstChild);
+        }
+
+        function updateStats(data) {
+            document.getElementById('attempts-count').textContent = data.attemptsCount;
+            document.getElementById('max-attempts').textContent = data.maxAttempts;
+            updatePlayersList(data.players);
+        }
+
+        function addChatMessage(data) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            messageDiv.innerHTML = `
+                <strong>${data.playerName}</strong> <span style="color: #666; font-size: 11px;">${data.timestamp}</span><br>
+                ${data.message}
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            statusDiv.classList.remove('hidden');
+
+            setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
