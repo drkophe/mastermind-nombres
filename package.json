@@ -1,7 +1,7 @@
 {
-  "name": "mastermind-nombres",
+  "name": "jeux-multijoueurs",
   "version": "1.0.0",
-  "description": "Jeu Mastermind multijoueur avec des nombres à 4 chiffres",
+  "description": "Mastermind + Quiz Environnement multijoueurs temps réel",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,7 +9,8 @@
   },
   "keywords": [
     "mastermind",
-    "jeu",
+    "quiz",
+    "environnement",
     "multijoueur",
     "socket.io",
     "nodejs"
