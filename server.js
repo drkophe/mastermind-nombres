@@ -1333,7 +1333,7 @@ let mastermindState = {
   attempts: [],
   players: {},
   hostId: null,
-  maxAttempts: 10
+  maxAttempts: 30
 };
 
 // État du Quiz
