@@ -1,7 +1,7 @@
 {
   "name": "jeux-multijoueurs",
   "version": "1.0.0",
-  "description": "Mastermind + Quiz Environnement multijoueurs temps réel",
+  "description": "Mastermind + Quiz ERP/PPR multijoueurs temps réel",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -10,7 +10,9 @@
   "keywords": [
     "mastermind",
     "quiz",
-    "environnement",
+    "erp",
+    "ppr",
+    "immobilier",
     "multijoueur",
     "socket.io",
     "nodejs"
