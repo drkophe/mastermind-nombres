@@ -1324,7 +1324,38 @@ const quizQuestions = [
   }
 ];
 
-// ==================== ÉTAT DU JEU LE 10000 ====================
+// ==================== ÉTATS DE JEU ====================
+// État du Mastermind
+let mastermindState = {
+  targetNumber: null,
+  mode: 'random',
+  isGameActive: false,
+  attempts: [],
+  players: {},
+  hostId: null,
+  maxAttempts: 10
+};
+
+// État du Quiz
+let quizState = {
+  currentQuestion: null,
+  currentQuestionIndex: 0,
+  questions: [],
+  isGameActive: false,
+  players: {},
+  hostId: null,
+  answers: {},
+  scores: {},
+  gameSettings: {
+    questionCount: 10,
+    difficulty: 'mixed',
+    timePerQuestion: 30
+  },
+  questionStartTime: null,
+  questionTimer: null
+};
+
+// État du Le 10000
 let le10000State = {
   players: {},
   hostId: null,
@@ -1351,282 +1382,6 @@ let le10000State = {
     scoringDice: []
   },
   turnTimer: null
-};
-
-// ==================== FONCTIONS LE 10000 ====================
-function resetLe10000() {
-  le10000State.isGameActive = false;
-  le10000State.currentPlayerIndex = 0;
-  le10000State.currentPlayerTurn = null;
-  le10000State.currentTurn = {
-    playerId: null,
-    diceResults: [],
-    availableDice: 5,
-    turnScore: 0,
-    totalScore: 0,
-    canContinue: false,
-    mustReroll: false,
-    selectedDice: [],
-    scoringDice: []
-  };
-  if (le10000State.turnTimer) {
-    clearTimeout(le10000State.turnTimer);
-    le10000State.turnTimer = null;
-  }
-  
-  // Réinitialiser les scores des joueurs
-  Object.keys(le10000State.players).forEach(playerId => {
-    le10000State.players[playerId].score = 0;
-    le10000State.players[playerId].crosses = 0;
-    le10000State.players[playerId].hasOpened = false;
-  });
-}
-
-function rollDice(count) {
-  const dice = [];
-  for (let i = 0; i < count; i++) {
-    dice.push(Math.floor(Math.random() * 6) + 1);
-  }
-  return dice;
-}
-
-function calculateScore(dice) {
-  const counts = [0, 0, 0, 0, 0, 0, 0]; // Index 0 unused, 1-6 for dice values
-  dice.forEach(die => counts[die]++);
-  
-  let score = 0;
-  let scoringDice = [];
-  
-  // Check for special combinations first
-  
-  // Suite (1,2,3,4,5 or 2,3,4,5,6)
-  if ((counts[1] >= 1 && counts[2] >= 1 && counts[3] >= 1 && counts[4] >= 1 && counts[5] >= 1) ||
-      (counts[2] >= 1 && counts[3] >= 1 && counts[4] >= 1 && counts[5] >= 1 && counts[6] >= 1)) {
-    return { score: 1000, scoringDice: dice.slice(), description: "Suite: 1000 points" };
-  }
-  
-  // Yam (5 identical dice)
-  for (let value = 1; value <= 6; value++) {
-    if (counts[value] === 5) {
-      const yamScore = value === 1 ? 2000 : value * 200;
-      return { 
-        score: yamScore, 
-        scoringDice: dice.slice(), 
-        description: `Yam de ${value}: ${yamScore} points` 
-      };
-    }
-  }
-  
-  // Carré (4 identical dice)
-  for (let value = 1; value <= 6; value++) {
-    if (counts[value] === 4) {
-      const carreScore = value === 1 ? 1500 : Math.floor(value * 100 * 1.5);
-      for (let i = 0; i < 4; i++) {
-        scoringDice.push(value);
-      }
-      score += carreScore;
-      counts[value] -= 4;
-      break;
-    }
-  }
-  
-  // Brelan (3 identical dice)
-  for (let value = 1; value <= 6; value++) {
-    if (counts[value] >= 3) {
-      const brelanScore = value === 1 ? 1000 : value * 100;
-      for (let i = 0; i < 3; i++) {
-        scoringDice.push(value);
-      }
-      score += brelanScore;
-      counts[value] -= 3;
-      break;
-    }
-  }
-  
-  // Individual 1s and 5s
-  if (counts[1] > 0) {
-    for (let i = 0; i < counts[1]; i++) {
-      scoringDice.push(1);
-    }
-    score += counts[1] * 100;
-  }
-  
-  if (counts[5] > 0) {
-    for (let i = 0; i < counts[5]; i++) {
-      scoringDice.push(5);
-    }
-    score += counts[5] * 50;
-  }
-  
-  let description = "";
-  if (scoringDice.length === 0) {
-    description = "Aucun point";
-  } else {
-    const parts = [];
-    if (counts[1] > 0) parts.push(`${counts[1]}×1 = ${counts[1] * 100}pts`);
-    if (counts[5] > 0) parts.push(`${counts[5]}×5 = ${counts[5] * 50}pts`);
-    description = parts.join(", ");
-  }
-  
-  return { score, scoringDice, description };
-}
-
-function isFullHouse(dice, scoringDice) {
-  return dice.length === scoringDice.length;
-}
-
-function nextPlayer() {
-  const playerIds = Object.keys(le10000State.players);
-  le10000State.currentPlayerIndex = (le10000State.currentPlayerIndex + 1) % playerIds.length;
-  le10000State.currentPlayerTurn = playerIds[le10000State.currentPlayerIndex];
-  
-  // Reset turn state
-  le10000State.currentTurn = {
-    playerId: le10000State.currentPlayerTurn,
-    diceResults: [],
-    availableDice: 5,
-    turnScore: 0,
-    totalScore: le10000State.players[le10000State.currentPlayerTurn].score,
-    canContinue: false,
-    mustReroll: false,
-    selectedDice: [],
-    scoringDice: []
-  };
-  
-  startTurnTimer();
-}
-
-function startTurnTimer() {
-  if (le10000State.turnTimer) {
-    clearTimeout(le10000State.turnTimer);
-  }
-  
-  le10000State.turnTimer = setTimeout(() => {
-    // Auto-pass turn if time runs out
-    endTurn(false);
-  }, le10000State.gameSettings.turnTimeLimit * 1000);
-}
-
-function endTurn(saveScore) {
-  if (le10000State.turnTimer) {
-    clearTimeout(le10000State.turnTimer);
-    le10000State.turnTimer = null;
-  }
-  
-  const currentPlayer = le10000State.players[le10000State.currentPlayerTurn];
-  
-  if (saveScore && le10000State.currentTurn.turnScore > 0) {
-    // Save the score
-    const newScore = currentPlayer.score + le10000State.currentTurn.turnScore;
-    
-    if (newScore === le10000State.targetScore) {
-      // Win!
-      currentPlayer.score = newScore;
-      endGame(le10000State.currentPlayerTurn);
-      return;
-    } else if (newScore > le10000State.targetScore) {
-      // Bust! No points added
-      io.to('le10000').emit('le10000-bust', {
-        playerId: le10000State.currentPlayerTurn,
-        playerName: currentPlayer.name,
-        score: newScore,
-        targetScore: le10000State.targetScore
-      });
-    } else {
-      // Normal score
-      currentPlayer.score = newScore;
-      if (!currentPlayer.hasOpened && newScore >= le10000State.gameSettings.openingScore) {
-        currentPlayer.hasOpened = true;
-      }
-    }
-    
-    // Reset crosses on successful turn
-    currentPlayer.crosses = 0;
-  } else {
-    // No score - add a cross
-    currentPlayer.crosses++;
-    
-    if (currentPlayer.crosses >= le10000State.gameSettings.maxCrosses) {
-      // Penalty
-      currentPlayer.score = Math.max(0, currentPlayer.score - le10000State.gameSettings.crossPenalty);
-      currentPlayer.crosses = 0;
-      
-      io.to('le10000').emit('le10000-cross-penalty', {
-        playerId: le10000State.currentPlayerTurn,
-        playerName: currentPlayer.name,
-        penalty: le10000State.gameSettings.crossPenalty,
-        newScore: currentPlayer.score
-      });
-    }
-  }
-  
-  // Send turn result
-  io.to('le10000').emit('le10000-turn-ended', {
-    playerId: le10000State.currentPlayerTurn,
-    scoreAdded: saveScore ? le10000State.currentTurn.turnScore : 0,
-    newScore: currentPlayer.score,
-    crosses: currentPlayer.crosses,
-    players: le10000State.players
-  });
-  
-  // Next player's turn
-  nextPlayer();
-  
-  io.to('le10000').emit('le10000-new-turn', {
-    currentPlayer: le10000State.currentPlayerTurn,
-    playerName: le10000State.players[le10000State.currentPlayerTurn].name,
-    timeLimit: le10000State.gameSettings.turnTimeLimit,
-    gameState: {
-      currentTurn: le10000State.currentTurn,
-      players: le10000State.players
-    }
-  });
-}
-
-function endGame(winnerId) {
-  le10000State.isGameActive = false;
-  
-  const winner = le10000State.players[winnerId];
-  const finalRanking = Object.entries(le10000State.players)
-    .map(([id, player]) => ({ ...player, id }))
-    .sort((a, b) => b.score - a.score);
-  
-  io.to('le10000').emit('le10000-game-ended', {
-    winner: {
-      id: winnerId,
-      name: winner.name,
-      score: winner.score
-    },
-    ranking: finalRanking
-  });
-}
-let mastermindState = {
-  targetNumber: null,
-  mode: 'random',
-  isGameActive: false,
-  attempts: [],
-  players: {},
-  hostId: null,
-  maxAttempts: 10
-};
-
-// État du Quiz
-let quizState = {
-  currentQuestion: null,
-  currentQuestionIndex: 0,
-  questions: [],
-  isGameActive: false,
-  players: {},
-  hostId: null,
-  answers: {},
-  scores: {},
-  gameSettings: {
-    questionCount: 10,
-    difficulty: 'mixed', // 'facile', 'moyen', 'difficile', 'mixed'
-    timePerQuestion: 30
-  },
-  questionStartTime: null,
-  questionTimer: null
 };
 
 // ==================== FONCTIONS MASTERMIND ====================
@@ -1726,7 +1481,6 @@ function nextQuestion() {
   quizState.answers = {};
   quizState.questionStartTime = Date.now();
   
-  // Envoyer la question à tous les joueurs
   io.to('quiz').emit('new-question', {
     question: quizState.currentQuestion,
     questionNumber: quizState.currentQuestionIndex + 1,
@@ -1734,7 +1488,6 @@ function nextQuestion() {
     timeLimit: quizState.gameSettings.timePerQuestion
   });
   
-  // Démarrer le timer
   quizState.questionTimer = setTimeout(() => {
     processAnswers();
   }, quizState.gameSettings.timePerQuestion * 1000);
@@ -1749,7 +1502,6 @@ function processAnswers() {
   const correctAnswer = quizState.currentQuestion.correct;
   const results = {};
   
-  // Calculer les scores
   Object.keys(quizState.players).forEach(playerId => {
     const playerAnswer = quizState.answers[playerId];
     const isCorrect = playerAnswer !== undefined && playerAnswer === correctAnswer;
@@ -1767,7 +1519,6 @@ function processAnswers() {
     };
   });
   
-  // Envoyer les résultats
   io.to('quiz').emit('question-results', {
     correctAnswer,
     results,
@@ -1777,7 +1528,6 @@ function processAnswers() {
   
   quizState.currentQuestionIndex++;
   
-  // Passer à la question suivante après 5 secondes
   setTimeout(() => {
     nextQuestion();
   }, 5000);
@@ -1786,7 +1536,6 @@ function processAnswers() {
 function endQuiz() {
   quizState.isGameActive = false;
   
-  // Calculer le classement
   const ranking = Object.entries(quizState.scores)
     .map(([playerId, score]) => ({
       playerId,
@@ -1798,6 +1547,240 @@ function endQuiz() {
   io.to('quiz').emit('quiz-ended', {
     ranking,
     totalQuestions: quizState.questions.length
+  });
+}
+
+// ==================== FONCTIONS LE 10000 ====================
+function resetLe10000() {
+  le10000State.isGameActive = false;
+  le10000State.currentPlayerIndex = 0;
+  le10000State.currentPlayerTurn = null;
+  le10000State.currentTurn = {
+    playerId: null,
+    diceResults: [],
+    availableDice: 5,
+    turnScore: 0,
+    totalScore: 0,
+    canContinue: false,
+    mustReroll: false,
+    selectedDice: [],
+    scoringDice: []
+  };
+  if (le10000State.turnTimer) {
+    clearTimeout(le10000State.turnTimer);
+    le10000State.turnTimer = null;
+  }
+  
+  Object.keys(le10000State.players).forEach(playerId => {
+    le10000State.players[playerId].score = 0;
+    le10000State.players[playerId].crosses = 0;
+    le10000State.players[playerId].hasOpened = false;
+  });
+}
+
+function rollDice(count) {
+  const dice = [];
+  for (let i = 0; i < count; i++) {
+    dice.push(Math.floor(Math.random() * 6) + 1);
+  }
+  return dice;
+}
+
+function calculateScore(dice) {
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  dice.forEach(die => counts[die]++);
+  
+  let score = 0;
+  let scoringDice = [];
+  
+  // Suite (1,2,3,4,5 or 2,3,4,5,6)
+  if ((counts[1] >= 1 && counts[2] >= 1 && counts[3] >= 1 && counts[4] >= 1 && counts[5] >= 1) ||
+      (counts[2] >= 1 && counts[3] >= 1 && counts[4] >= 1 && counts[5] >= 1 && counts[6] >= 1)) {
+    return { score: 1000, scoringDice: dice.slice(), description: "Suite: 1000 points" };
+  }
+  
+  // Yam (5 identical dice)
+  for (let value = 1; value <= 6; value++) {
+    if (counts[value] === 5) {
+      const yamScore = value === 1 ? 2000 : value * 200;
+      return { 
+        score: yamScore, 
+        scoringDice: dice.slice(), 
+        description: `Yam de ${value}: ${yamScore} points` 
+      };
+    }
+  }
+  
+  // Carré (4 identical dice)
+  for (let value = 1; value <= 6; value++) {
+    if (counts[value] === 4) {
+      const carreScore = value === 1 ? 1500 : Math.floor(value * 100 * 1.5);
+      for (let i = 0; i < 4; i++) {
+        scoringDice.push(value);
+      }
+      score += carreScore;
+      counts[value] -= 4;
+      break;
+    }
+  }
+  
+  // Brelan (3 identical dice)
+  for (let value = 1; value <= 6; value++) {
+    if (counts[value] >= 3) {
+      const brelanScore = value === 1 ? 1000 : value * 100;
+      for (let i = 0; i < 3; i++) {
+        scoringDice.push(value);
+      }
+      score += brelanScore;
+      counts[value] -= 3;
+      break;
+    }
+  }
+  
+  // Individual 1s and 5s
+  if (counts[1] > 0) {
+    for (let i = 0; i < counts[1]; i++) {
+      scoringDice.push(1);
+    }
+    score += counts[1] * 100;
+  }
+  
+  if (counts[5] > 0) {
+    for (let i = 0; i < counts[5]; i++) {
+      scoringDice.push(5);
+    }
+    score += counts[5] * 50;
+  }
+  
+  let description = "";
+  if (scoringDice.length === 0) {
+    description = "Aucun point";
+  } else {
+    const parts = [];
+    if (counts[1] > 0) parts.push(`${counts[1]}×1 = ${counts[1] * 100}pts`);
+    if (counts[5] > 0) parts.push(`${counts[5]}×5 = ${counts[5] * 50}pts`);
+    description = parts.join(", ");
+  }
+  
+  return { score, scoringDice, description };
+}
+
+function isFullHouse(dice, scoringDice) {
+  return dice.length === scoringDice.length;
+}
+
+function nextPlayer() {
+  const playerIds = Object.keys(le10000State.players);
+  le10000State.currentPlayerIndex = (le10000State.currentPlayerIndex + 1) % playerIds.length;
+  le10000State.currentPlayerTurn = playerIds[le10000State.currentPlayerIndex];
+  
+  le10000State.currentTurn = {
+    playerId: le10000State.currentPlayerTurn,
+    diceResults: [],
+    availableDice: 5,
+    turnScore: 0,
+    totalScore: le10000State.players[le10000State.currentPlayerTurn].score,
+    canContinue: false,
+    mustReroll: false,
+    selectedDice: [],
+    scoringDice: []
+  };
+  
+  startTurnTimer();
+}
+
+function startTurnTimer() {
+  if (le10000State.turnTimer) {
+    clearTimeout(le10000State.turnTimer);
+  }
+  
+  le10000State.turnTimer = setTimeout(() => {
+    endTurn(false);
+  }, le10000State.gameSettings.turnTimeLimit * 1000);
+}
+
+function endTurn(saveScore) {
+  if (le10000State.turnTimer) {
+    clearTimeout(le10000State.turnTimer);
+    le10000State.turnTimer = null;
+  }
+  
+  const currentPlayer = le10000State.players[le10000State.currentPlayerTurn];
+  
+  if (saveScore && le10000State.currentTurn.turnScore > 0) {
+    const newScore = currentPlayer.score + le10000State.currentTurn.turnScore;
+    
+    if (newScore === le10000State.targetScore) {
+      currentPlayer.score = newScore;
+      endGame(le10000State.currentPlayerTurn);
+      return;
+    } else if (newScore > le10000State.targetScore) {
+      io.to('le10000').emit('le10000-bust', {
+        playerId: le10000State.currentPlayerTurn,
+        playerName: currentPlayer.name,
+        score: newScore,
+        targetScore: le10000State.targetScore
+      });
+    } else {
+      currentPlayer.score = newScore;
+      if (!currentPlayer.hasOpened && newScore >= le10000State.gameSettings.openingScore) {
+        currentPlayer.hasOpened = true;
+      }
+    }
+    
+    currentPlayer.crosses = 0;
+  } else {
+    currentPlayer.crosses++;
+    
+    if (currentPlayer.crosses >= le10000State.gameSettings.maxCrosses) {
+      currentPlayer.score = Math.max(0, currentPlayer.score - le10000State.gameSettings.crossPenalty);
+      currentPlayer.crosses = 0;
+      
+      io.to('le10000').emit('le10000-cross-penalty', {
+        playerId: le10000State.currentPlayerTurn,
+        playerName: currentPlayer.name,
+        penalty: le10000State.gameSettings.crossPenalty,
+        newScore: currentPlayer.score
+      });
+    }
+  }
+  
+  io.to('le10000').emit('le10000-turn-ended', {
+    playerId: le10000State.currentPlayerTurn,
+    scoreAdded: saveScore ? le10000State.currentTurn.turnScore : 0,
+    newScore: currentPlayer.score,
+    crosses: currentPlayer.crosses,
+    players: le10000State.players
+  });
+  
+  nextPlayer();
+  
+  io.to('le10000').emit('le10000-new-turn', {
+    currentPlayer: le10000State.currentPlayerTurn,
+    playerName: le10000State.players[le10000State.currentPlayerTurn].name,
+    timeLimit: le10000State.gameSettings.turnTimeLimit,
+    gameState: {
+      currentTurn: le10000State.currentTurn,
+      players: le10000State.players
+    }
+  });
+}
+
+function endGame(winnerId) {
+  le10000State.isGameActive = false;
+  
+  const winner = le10000State.players[winnerId];
+  const finalRanking = Object.entries(le10000State.players)
+    .map(([id, player]) => ({ ...player, id }))
+    .sort((a, b) => b.score - a.score);
+  
+  io.to('le10000').emit('le10000-game-ended', {
+    winner: {
+      id: winnerId,
+      name: winner.name,
+      score: winner.score
+    },
+    ranking: finalRanking
   });
 }
 
@@ -1966,7 +1949,6 @@ io.on('connection', (socket) => {
     resetQuiz();
     quizState.gameSettings = { ...quizState.gameSettings, ...settings };
     
-    // Sélectionner les questions
     quizState.questions = selectQuestions(
       quizState.gameSettings.difficulty,
       quizState.gameSettings.questionCount
@@ -1977,7 +1959,6 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // Réinitialiser les scores
     Object.keys(quizState.players).forEach(playerId => {
       quizState.scores[playerId] = 0;
     });
@@ -1990,7 +1971,6 @@ io.on('connection', (socket) => {
       settings: quizState.gameSettings
     });
     
-    // Démarrer la première question après 3 secondes
     setTimeout(() => {
       nextQuestion();
     }, 3000);
@@ -2019,7 +1999,6 @@ io.on('connection', (socket) => {
       questionId: quizState.currentQuestion.id
     });
     
-    // Vérifier si tous les joueurs ont répondu
     const totalPlayers = Object.keys(quizState.players).length;
     const totalAnswers = Object.keys(quizState.answers).length;
     
@@ -2079,7 +2058,6 @@ io.on('connection', (socket) => {
     
     le10000State.isGameActive = true;
     
-    // Start with first player
     const playerIds = Object.keys(le10000State.players);
     le10000State.currentPlayerIndex = 0;
     le10000State.currentPlayerTurn = playerIds[0];
@@ -2106,20 +2084,16 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // Roll the available dice
     const diceResults = rollDice(le10000State.currentTurn.availableDice);
     le10000State.currentTurn.diceResults = diceResults;
     
-    // Calculate score
     const scoreResult = calculateScore(diceResults);
     le10000State.currentTurn.scoringDice = scoreResult.scoringDice;
     
     const currentPlayer = le10000State.players[socket.id];
     
-    // Check if player has opened
     if (!currentPlayer.hasOpened) {
       if (scoreResult.score < le10000State.gameSettings.openingScore) {
-        // Must reroll to try to open
         io.to('le10000').emit('le10000-dice-rolled', {
           playerId: socket.id,
           diceResults,
@@ -2134,7 +2108,6 @@ io.on('connection', (socket) => {
     }
     
     if (scoreResult.score === 0) {
-      // No points - end turn with cross
       io.to('le10000').emit('le10000-dice-rolled', {
         playerId: socket.id,
         diceResults,
@@ -2147,14 +2120,11 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // Add score to turn total
     le10000State.currentTurn.turnScore += scoreResult.score;
     
-    // Check for full house (all dice scoring)
     const isFullHouseRoll = isFullHouse(diceResults, scoreResult.scoringDice);
     
     if (isFullHouseRoll) {
-      // Must reroll all 5 dice
       le10000State.currentTurn.availableDice = 5;
       le10000State.currentTurn.mustReroll = true;
       
@@ -2169,7 +2139,6 @@ io.on('connection', (socket) => {
         message: "Main pleine ! Vous devez relancer les 5 dés"
       });
     } else {
-      // Player can choose to continue or stop
       le10000State.currentTurn.availableDice = diceResults.length - scoreResult.scoringDice.length;
       le10000State.currentTurn.canContinue = le10000State.currentTurn.availableDice > 0;
       
@@ -2203,7 +2172,6 @@ io.on('connection', (socket) => {
     
     le10000State.currentTurn.mustReroll = false;
     
-    // Continue with remaining dice
     socket.emit('le10000-turn-continued', {
       availableDice: le10000State.currentTurn.availableDice,
       turnScore: le10000State.currentTurn.turnScore
@@ -2232,7 +2200,7 @@ io.on('connection', (socket) => {
   // ========== ÉVÉNEMENTS COMMUNS ==========
   socket.on('chat-message', (data) => {
     const { message, game } = data;
-    const gameState = game === 'quiz' ? quizState : mastermindState;
+    const gameState = game === 'quiz' ? quizState : game === 'le10000' ? le10000State : mastermindState;
     const player = gameState.players[socket.id];
     
     if (player && message.trim()) {
@@ -2285,6 +2253,12 @@ io.on('connection', (socket) => {
         }
       }
       
+      io.to('quiz').emit('quiz-player-left', {
+        playerId: socket.id,
+        players: quizState.players
+      });
+    }
+    
     // Nettoyer Le 10000
     if (le10000State.players[socket.id]) {
       delete le10000State.players[socket.id];
@@ -2300,7 +2274,6 @@ io.on('connection', (socket) => {
         }
       }
       
-      // If current player disconnects, skip their turn
       if (le10000State.currentPlayerTurn === socket.id && le10000State.isGameActive) {
         nextPlayer();
         io.to('le10000').emit('le10000-player-disconnected', {
@@ -2339,4 +2312,5 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Serveur en cours d'exécution sur le port ${PORT}`);
   console.log(`Quiz: ${quizQuestions.length} questions chargées`);
+  console.log(`Le 10000: Jeu de dés multijoueur activé`);
 });
