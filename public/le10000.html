@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Le 10 000 - Jeu de Dés Multijoueur</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .back-button {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .back-button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 0;
+            min-height: 700px;
+        }
+
+        .game-area {
+            padding: 20px;
+            position: relative;
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            border-left: 1px solid #e9ecef;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .join-section {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .join-section input {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            margin: 5px;
+            font-size: 16px;
+            width: 200px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(250, 112, 154, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(250, 112, 154, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ffa500 100%);
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+        }
+
+        .host-controls {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .host-controls h3 {
+            color: #1976d2;
+            margin-bottom: 15px;
+        }
+
+        .settings-group {
+            margin: 15px 0;
+        }
+
+        .settings-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .settings-group select,
+        .settings-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .game-board {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .current-player {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .current-player h3 {
+            margin-bottom: 5px;
+            font-size: 1.2em;
+        }
+
+        .timer {
+            background: #ff6b6b;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 10px;
+            font-size: 18px;
+            min-width: 60px;
+        }
+
+        .timer.warning {
+            background: #ffa500;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .dice-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .dice {
+            width: 60px;
+            height: 60px;
+            background: white;
+            border: 3px solid #333;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            position: relative;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .dice.rolling {
+            animation: rollAnimation 1s ease-in-out;
+        }
+
+        .dice.scoring {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+            transform: scale(1.1);
+        }
+
+        @keyframes rollAnimation {
+            0% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(90deg) scale(1.2); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            75% { transform: rotate(270deg) scale(1.2); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        .dice-value {
+            position: relative;
+        }
+
+        .dice[data-value="1"] .dice-value::before { content: "⚀"; }
+        .dice[data-value="2"] .dice-value::before { content: "⚁"; }
+        .dice[data-value="3"] .dice-value::before { content: "⚂"; }
+        .dice[data-value="4"] .dice-value::before { content: "⚃"; }
+        .dice[data-value="5"] .dice-value::before { content: "⚄"; }
+        .dice[data-value="6"] .dice-value::before { content: "⚅"; }
+
+        .score-display {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .score-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .score-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #fa709a;
+        }
+
+        .turn-score {
+            color: #4facfe;
+        }
+
+        .total-score {
+            color: #28a745;
+        }
+
+        .actions {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .score-breakdown {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .players-section {
+            padding: 15px;
+            flex-grow: 1;
+        }
+
+        .players-section h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .player {
+            background: white;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border-left: 4px solid #fa709a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .player.host {
+            border-left-color: #ffc107;
+        }
+
+        .player.current {
+            background: #e3f2fd;
+            border-left-color: #2196f3;
+            transform: scale(1.02);
+        }
+
+        .player-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .player-name {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .player-status {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .player-score {
+            font-weight: bold;
+            color: #fa709a;
+            font-size: 16px;
+        }
+
+        .crosses {
+            display: flex;
+            gap: 2px;
+            margin-top: 2px;
+        }
+
+        .cross {
+            width: 12px;
+            height: 12px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 8px;
+            font-weight: bold;
+        }
+
+        .rules-section {
+            background: #e8f4fd;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .rules-section h3 {
+            color: #1976d2;
+            margin-bottom: 15px;
+        }
+
+        .rules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .rule-item {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #1976d2;
+        }
+
+        .rule-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #1976d2;
+        }
+
+        .rule-description {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .chat-section {
+            border-top: 1px solid #e9ecef;
+            padding: 15px;
+            height: 200px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            max-height: 120px;
+        }
+
+        .chat-message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+            background: #f8f9fa;
+            font-size: 12px;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 5px;
+        }
+
+        .chat-input input {
+            flex-grow: 1;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .final-results {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .final-results h2 {
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+
+        .winner-display {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .winner-name {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .winner-score {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                border-left: none;
+                border-top: 1px solid #e9ecef;
+            }
+            
+            .dice-container {
+                gap: 10px;
+            }
+            
+            .dice {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+            
+            .actions {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-button">← Accueil</a>
+            <h1>🎲 Le 10 000</h1>
+            <p>Jeu de dés stratégique - Atteignez exactement 10 000 points !</p>
+        </div>
+
+        <div class="main-content">
+            <div class="game-area">
+                <!-- Section de connexion -->
+                <div id="join-section" class="join-section">
+                    <h2>Rejoindre la partie</h2>
+                    <input type="text" id="player-name" placeholder="Votre nom" maxlength="20">
+                    <button class="btn btn-success" onclick="joinGame()">Rejoindre</button>
+                </div>
+
+                <!-- Règles du jeu -->
+                <div class="rules-section">
+                    <h3>📜 Règles du jeu</h3>
+                    <div class="rules-grid">
+                        <div class="rule-item">
+                            <div class="rule-title">🎯 Objectif</div>
+                            <div class="rule-description">Atteindre exactement 10 000 points</div>
+                        </div>
+                        <div class="rule-item">
+                            <div class="rule-title">🎲 Dés</div>
+                            <div class="rule-description">5 dés à 6 faces</div>
+                        </div>
+                        <div class="rule-item">
+                            <div class="rule-title">🔓 Ouverture</div>
+                            <div class="rule-description">500 points minimum pour commencer</div>
+                        </div>
+                        <div class="rule-item">
+                            <div class="rule-title">❌ Croix</div>
+                            <div class="rule-description">3 croix = -1000 points</div>
+                        </div>
+                        <div class="rule-item">
+                            <div class="rule-title">🎮 Points</div>
+                            <div class="rule-description">1=100pts, 5=50pts, Brelans, Carrés...</div>
+                        </div>
+                        <div class="rule-item">
+                            <div class="rule-title">🏠 Main pleine</div>
+                            <div class="rule-description">Tous les dés marquent = relance obligatoire</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contrôles de l'hôte -->
+                <div id="host-controls" class="host-controls hidden">
+                    <h3>🏠 Paramètres de la partie</h3>
+                    
+                    <div class="settings-group">
+                        <label for="target-score">Score à atteindre :</label>
+                        <select id="target-score">
+                            <option value="5000">5 000 points (rapide)</option>
+                            <option value="10000" selected>10 000 points (classique)</option>
+                            <option value="15000">15 000 points (long)</option>
+                            <option value="20000">20 000 points (marathon)</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-group">
+                        <label for="opening-score">Score d'ouverture :</label>
+                        <select id="opening-score">
+                            <option value="300">300 points</option>
+                            <option value="500" selected>500 points</option>
+                            <option value="750">750 points</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-group">
+                        <label for="turn-time">Temps par tour (secondes) :</label>
+                        <select id="turn-time">
+                            <option value="30">30 secondes</option>
+                            <option value="60" selected>60 secondes</option>
+                            <option value="90">90 secondes</option>
+                            <option value="120">2 minutes</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-success" onclick="startGame()">Démarrer la partie</button>
+                </div>
+
+                <!-- Joueur actuel -->
+                <div id="current-player" class="current-player hidden">
+                    <h3 id="current-player-name">Tour de...</h3>
+                    <div id="timer" class="timer">60</div>
+                </div>
+
+                <!-- Plateau de jeu -->
+                <div id="game-board" class="game-board hidden">
+                    <div class="score-display">
+                        <div class="score-label">Score du tour</div>
+                        <div id="turn-score" class="score-value turn-score">0</div>
+                    </div>
+
+                    <div id="dice-container" class="dice-container">
+                        <!-- Les dés seront générés dynamiquement -->
+                    </div>
+
+                    <div id="score-breakdown" class="score-breakdown hidden">
+                        <strong>Détail :</strong> <span id="breakdown-text"></span>
+                    </div>
+
+                    <div id="actions" class="actions">
+                        <button id="roll-btn" class="btn" onclick="rollDice()">🎲 Lancer les dés</button>
+                        <button id="continue-btn" class="btn hidden" onclick="continueTurn()">▶️ Continuer</button>
+                        <button id="stop-btn" class="btn btn-success hidden" onclick="stopTurn()">💰 Prendre les points</button>
+                    </div>
+
+                    <div id="game-message" class="status hidden"></div>
+                </div>
+
+                <!-- Résultats finaux -->
+                <div id="final-results" class="final-results hidden">
+                    <h2>🏆 Partie terminée !</h2>
+                    <div id="winner-display" class="winner-display">
+                        <div id="winner-name" class="winner-name"></div>
+                        <div id="winner-score" class="winner-score"></div>
+                    </div>
+                    <button class="btn btn-success" onclick="location.reload()">Nouvelle partie</button>
+                </div>
+
+                <!-- Messages de statut -->
+                <div id="status-message"></div>
+            </div>
+
+            <div class="sidebar">
+                <!-- Section des joueurs -->
+                <div class="players-section">
+                    <h3>👥 Joueurs</h3>
+                    <div id="players-list"></div>
+                </div>
+
+                <!-- Section de chat -->
+                <div class="chat-section">
+                    <h3>💬 Chat</h3>
+                    <div id="chat-messages" class="chat-messages"></div>
+                    <div class="chat-input">
+                        <input type="text" id="chat-input" placeholder="Tapez votre message..." maxlength="200">
+                        <button class="btn" onclick="sendMessage()">Envoyer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let isHost = false;
+        let gameActive = false;
+        let isMyTurn = false;
+        let timerInterval = null;
+
+        // Initialisation
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('player-name').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') joinGame();
+            });
+
+            document.getElementById('chat-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
+        });
+
+        function joinGame() {
+            const playerName = document.getElementById('player-name').value.trim();
+            if (!playerName) {
+                showStatus('Veuillez entrer votre nom', 'error');
+                return;
+            }
+
+            socket = io();
+            socket.emit('join-le10000', playerName);
+
+            // Événements socket
+            socket.on('le10000-host-status', function(isHostStatus) {
+                isHost = isHostStatus;
+                if (isHost) {
+                    document.getElementById('host-controls').classList.remove('hidden');
+                    showStatus('Vous êtes l\'hôte de la partie', 'success');
+                }
+            });
+
+            socket.on('le10000-game-state', function(gameState) {
+                updateGameState(gameState);
+            });
+
+            socket.on('le10000-player-joined', function(data) {
+                updatePlayersList(data.players);
+                showStatus(`${data.player.name} a rejoint la partie`, 'info');
+            });
+
+            socket.on('le10000-player-left', function(data) {
+                updatePlayersList(data.players);
+            });
+
+            socket.on('le10000-game-started', function(data) {
+                gameActive = true;
+                document.getElementById('host-controls').classList.add('hidden');
+                document.getElementById('current-player').classList.remove('hidden');
+                document.getElementById('game-board').classList.remove('hidden');
+                showStatus(data.message, 'success');
+                updateCurrentPlayer(data.currentPlayer, data.playerName);
+            });
+
+            socket.on('le10000-new-turn', function(data) {
+                updateCurrentPlayer(data.currentPlayer, data.playerName);
+                isMyTurn = data.currentPlayer === socket.id;
+                resetTurnDisplay();
+                startTimer(data.timeLimit);
+                
+                if (isMyTurn) {
+                    showGameMessage('C\'est votre tour ! Lancez les dés', 'info');
+                    document.getElementById('roll-btn').disabled = false;
+                } else {
+                    showGameMessage(`Au tour de ${data.playerName}`, 'info');
+                    document.getElementById('roll-btn').disabled = true;
+                }
+            });
+
+            socket.on('le10000-dice-rolled', function(data) {
+                displayDiceResults(data);
+                updateTurnScore(data.turnScore || 0);
+                
+                if (data.scoreResult && data.scoreResult.description) {
+                    showScoreBreakdown(data.scoreResult.description);
+                }
+                
+                if (data.mustReroll) {
+                    showGameMessage(data.message || 'Vous devez relancer les dés', 'info');
+                    document.getElementById('continue-btn').classList.remove('hidden');
+                    document.getElementById('stop-btn').classList.add('hidden');
+                } else if (data.canStop) {
+                    document.getElementById('continue-btn').classList.toggle('hidden', !data.canContinue);
+                    document.getElementById('stop-btn').classList.remove('hidden');
+                } else if (data.endTurn) {
+                    showGameMessage(data.message, 'error');
+                    setTimeout(() => {
+                        resetActions();
+                    }, 2000);
+                }
+                
+                document.getElementById('roll-btn').classList.add('hidden');
+            });
+
+            socket.on('le10000-turn-continued', function(data) {
+                document.getElementById('roll-btn').classList.remove('hidden');
+                document.getElementById('continue-btn').classList.add('hidden');
+                showGameMessage(`${data.availableDice} dés restants`, 'info');
+            });
+
+            socket.on('le10000-turn-ended', function(data) {
+                updatePlayersList(data.players);
+                if (data.scoreAdded > 0) {
+                    showGameMessage(`${getPlayerName(data.playerId)} a marqué ${data.scoreAdded} points !`, 'success');
+                } else {
+                    showGameMessage(`${getPlayerName(data.playerId)} n'a marqué aucun point`, 'error');
+                }
+                resetActions();
+            });
+
+            socket.on('le10000-bust', function(data) {
+                showGameMessage(`${data.playerName} a dépassé ${data.targetScore} points ! Aucun point marqué`, 'error');
+            });
+
+            socket.on('le10000-cross-penalty', function(data) {
+                showGameMessage(`${data.playerName} a reçu 3 croix ! Pénalité de ${data.penalty} points`, 'error');
+            });
+
+            socket.on('le10000-game-ended', function(data) {
+                gameActive = false;
+                showFinalResults(data);
+            });
+
+            socket.on('le10000-player-disconnected', function(data) {
+                updatePlayersList(data.players);
+                if (data.newCurrentPlayer) {
+                    updateCurrentPlayer(data.newCurrentPlayer, getPlayerName(data.newCurrentPlayer));
+                }
+            });
+
+            socket.on('chat-message', function(data) {
+                if (data.game === 'le10000' || !data.game) {
+                    addChatMessage(data);
+                }
+            });
+
+            socket.on('error', function(message) {
+                showStatus(message, 'error');
+            });
+
+            document.getElementById('join-section').classList.add('hidden');
+        }
+
+        function startGame() {
+            if (!isHost) return;
+
+            const settings = {
+                targetScore: parseInt(document.getElementById('target-score').value),
+                openingScore: parseInt(document.getElementById('opening-score').value),
+                turnTimeLimit: parseInt(document.getElementById('turn-time').value)
+            };
+
+            socket.emit('start-le10000', settings);
+        }
+
+        function rollDice() {
+            if (!isMyTurn) return;
+            socket.emit('le10000-roll-dice');
+        }
+
+        function continueTurn() {
+            if (!isMyTurn) return;
+            socket.emit('le10000-continue-turn');
+        }
+
+        function stopTurn() {
+            if (!isMyTurn) return;
+            socket.emit('le10000-end-turn');
+        }
+
+        function sendMessage() {
+            const message = document.getElementById('chat-input').value.trim();
+            if (!message) return;
+
+            socket.emit('chat-message', { message, game: 'le10000' });
+            document.getElementById('chat-input').value = '';
+        }
+
+        function updateGameState(gameState) {
+            gameActive = gameState.isGameActive;
+            updatePlayersList(gameState.players);
+            
+            if (gameState.currentPlayer) {
+                updateCurrentPlayer(gameState.currentPlayer, getPlayerName(gameState.currentPlayer));
+                isMyTurn = gameState.currentPlayer === socket.id;
+            }
+        }
+
+        function updatePlayersList(players) {
+            const playersList = document.getElementById('players-list');
+            playersList.innerHTML = '';
+
+            Object.values(players).forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = `player ${player.id === socket.id ? 'host' : ''} ${isMyTurn && player.id === socket.id ? 'current' : ''}`;
+                
+                const crosses = Array(player.crosses).fill('').map(() => '<div class="cross">✕</div>').join('');
+                const statusText = player.hasOpened ? 'Ouvert' : 'Non ouvert';
+                
+                playerDiv.innerHTML = `
+                    <div class="player-info">
+                        <div class="player-name">${player.name} ${player.id === socket.id ? '(Vous)' : ''}</div>
+                        <div class="player-status">${statusText}</div>
+                        <div class="crosses">${crosses}</div>
+                    </div>
+                    <div class="player-score">${player.score}</div>
+                `;
+                playersList.appendChild(playerDiv);
+            });
+        }
+
+        function updateCurrentPlayer(playerId, playerName) {
+            document.getElementById('current-player-name').textContent = `Tour de ${playerName}`;
+            
+            // Mettre à jour la classe current dans la liste
+            document.querySelectorAll('.player').forEach(p => p.classList.remove('current'));
+            const currentPlayerDiv = Array.from(document.querySelectorAll('.player')).find(p => 
+                p.querySelector('.player-name').textContent.includes(playerName)
+            );
+            if (currentPlayerDiv) {
+                currentPlayerDiv.classList.add('current');
+            }
+        }
+
+        function startTimer(seconds) {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            let timeLeft = seconds;
+            const timerDiv = document.getElementById('timer');
+            
+            timerInterval = setInterval(() => {
+                timerDiv.textContent = timeLeft;
+                
+                if (timeLeft <= 10) {
+                    timerDiv.classList.add('warning');
+                } else {
+                    timerDiv.classList.remove('warning');
+                }
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                }
+                
+                timeLeft--;
+            }, 1000);
+        }
+
+        function displayDiceResults(data) {
+            const container = document.getElementById('dice-container');
+            container.innerHTML = '';
+            
+            data.diceResults.forEach((value, index) => {
+                const dice = document.createElement('div');
+                dice.className = 'dice rolling';
+                dice.setAttribute('data-value', value);
+                
+                setTimeout(() => {
+                    dice.classList.remove('rolling');
+                    if (data.scoreResult && data.scoreResult.scoringDice.includes(value)) {
+                        dice.classList.add('scoring');
+                    }
+                }, 1000);
+                
+                dice.innerHTML = '<div class="dice-value"></div>';
+                container.appendChild(dice);
+            });
+        }
+
+        function updateTurnScore(score) {
+            document.getElementById('turn-score').textContent = score;
+        }
+
+        function showScoreBreakdown(description) {
+            const breakdown = document.getElementById('score-breakdown');
+            document.getElementById('breakdown-text').textContent = description;
+            breakdown.classList.remove('hidden');
+        }
+
+        function resetTurnDisplay() {
+            document.getElementById('dice-container').innerHTML = '';
+            document.getElementById('turn-score').textContent = '0';
+            document.getElementById('score-breakdown').classList.add('hidden');
+            resetActions();
+        }
+
+        function resetActions() {
+            document.getElementById('roll-btn').classList.remove('hidden');
+            document.getElementById('continue-btn').classList.add('hidden');
+            document.getElementById('stop-btn').classList.add('hidden');
+            document.getElementById('roll-btn').disabled = !isMyTurn;
+        }
+
+        function showGameMessage(message, type) {
+            const messageDiv = document.getElementById('game-message');
+            messageDiv.textContent = message;
+            messageDiv.className = `status ${type}`;
+            messageDiv.classList.remove('hidden');
+            
+            setTimeout(() => {
+                messageDiv.classList.add('hidden');
+            }, 3000);
+        }
+
+        function showFinalResults(data) {
+            document.getElementById('final-results').classList.remove('hidden');
+            document.getElementById('game-board').classList.add('hidden');
+            document.getElementById('current-player').classList.add('hidden');
+            
+            document.getElementById('winner-name').textContent = `🏆 ${data.winner.name}`;
+            document.getElementById('winner-score').textContent = `${data.winner.score} points`;
+        }
+
+        function getPlayerName(playerId) {
+            // Cette fonction devrait retourner le nom du joueur basé sur son ID
+            // Pour simplifier, on retourne "Joueur" si on ne trouve pas
+            return 'Joueur';
+        }
+
+        function addChatMessage(data) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            messageDiv.innerHTML = `
+                <strong>${data.playerName}</strong> <span style="color: #666; font-size: 10px;">${data.timestamp}</span><br>
+                ${data.message}
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            statusDiv.classList.remove('hidden');
+
+            setTimeout(() => {
+                statusDiv.classList.add('hidden');
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
