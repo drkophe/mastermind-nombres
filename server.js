@@ -1784,6 +1784,133 @@ function endGame(winnerId) {
   });
 }
 
+// ==================== DONNÉES PENDU ====================
+// Système de mots par catégories (liste locale fiable)
+const penduWords = {
+  animaux: [
+    'ELEPHANT', 'GIRAFE', 'KANGOUROU', 'CROCODILE', 'PAPILLON',
+    'DAUPHIN', 'TIGRE', 'PINGOUIN', 'ZEBRE', 'TORTUE',
+    'PERROQUET', 'AIGLE', 'CHAMEAU', 'RENARD', 'LAPIN',
+    'HIBOU', 'SERPENT', 'ECUREUIL', 'SAUTERELLE', 'MOUTON'
+  ],
+  pays: [
+    'FRANCE', 'ESPAGNE', 'ITALIE', 'PORTUGAL', 'ALLEMAGNE',
+    'BELGIQUE', 'SUISSE', 'NORVEGE', 'SUEDE', 'POLOGNE',
+    'GRECE', 'IRLANDE', 'ISLANDE', 'DANEMARK', 'FINLANDE',
+    'AUTRICHE', 'HONGRIE', 'ROUMANIE', 'BULGARIE', 'CROATIE'
+  ],
+  technologie: [
+    'ORDINATEUR', 'INTERNET', 'LOGICIEL', 'CLAVIER', 'SOURIS',
+    'ECRAN', 'SERVEUR', 'ROUTEUR', 'ALGORITHME', 'PROGRAMMATION',
+    'APPLICATION', 'SMARTPHONE', 'TABLETTE', 'BLUETOOTH', 'WIFI',
+    'PROCESSEUR', 'MEMOIRE', 'DISQUE', 'RESEAU', 'NAVIGATEUR'
+  ],
+  nourriture: [
+    'PIZZA', 'HAMBURGER', 'CROISSANT', 'BAGUETTE', 'FROMAGE',
+    'CHOCOLAT', 'PATISSERIE', 'SANDWICH', 'SALADE', 'SPAGHETTI',
+    'OMELETTE', 'BRIOCHE', 'GATEAU', 'TARTE', 'CREPE',
+    'QUICHE', 'SOUPE', 'RAVIOLI', 'BISCUIT', 'BONBON'
+  ],
+  general: [
+    'MAISON', 'JARDIN', 'VOITURE', 'AVION', 'TRAIN',
+    'LIVRE', 'MUSIQUE', 'CINEMA', 'THEATRE', 'SPORT',
+    'MONTAGNE', 'PLAGE', 'FORET', 'DESERT', 'OCEAN',
+    'SOLEIL', 'LUNE', 'ETOILE', 'NUAGE', 'PLUIE',
+    'FLEUR', 'ARBRE', 'ROUTE', 'PONT', 'CHATEAU'
+  ]
+};
+
+// État du Pendu
+let penduState = {
+  players: {},
+  hostId: null,
+  isGameActive: false,
+  mode: 'coop', // 'coop' ou 'master'
+  word: null,
+  displayWord: null,
+  category: 'general',
+  triedLetters: [],
+  errors: 0,
+  maxErrors: 7,
+  timer: 300, // 5 minutes en secondes
+  timerInterval: null,
+  masterId: null, // Pour le mode B
+  messages: []
+};
+
+// ==================== FONCTIONS PENDU ====================
+function getRandomWord(category) {
+  const words = penduWords[category] || penduWords.general;
+  return words[Math.floor(Math.random() * words.length)];
+}
+
+function initializeDisplayWord(word) {
+  return '_'.repeat(word.length);
+}
+
+function updateDisplayWord(word, triedLetters) {
+  return word.split('').map(letter =>
+    triedLetters.includes(letter) ? letter : '_'
+  ).join('');
+}
+
+function resetPendu() {
+  if (penduState.timerInterval) {
+    clearInterval(penduState.timerInterval);
+    penduState.timerInterval = null;
+  }
+
+  penduState.isGameActive = false;
+  penduState.word = null;
+  penduState.displayWord = null;
+  penduState.triedLetters = [];
+  penduState.errors = 0;
+  penduState.timer = 300;
+  penduState.masterId = null;
+  penduState.messages = [];
+}
+
+function startPenduTimer() {
+  if (penduState.timerInterval) {
+    clearInterval(penduState.timerInterval);
+  }
+
+  penduState.timer = 300; // 5 minutes
+  penduState.timerInterval = setInterval(() => {
+    penduState.timer--;
+
+    io.to('pendu').emit('pendu-timer-update', {
+      timeLeft: penduState.timer
+    });
+
+    if (penduState.timer <= 0) {
+      clearInterval(penduState.timerInterval);
+      penduState.timerInterval = null;
+      endPenduGame('timeout');
+    }
+  }, 1000);
+}
+
+function endPenduGame(reason) {
+  if (penduState.timerInterval) {
+    clearInterval(penduState.timerInterval);
+    penduState.timerInterval = null;
+  }
+
+  penduState.isGameActive = false;
+
+  io.to('pendu').emit('pendu-game-over', {
+    reason, // 'won', 'lost', 'timeout'
+    word: penduState.word,
+    errors: penduState.errors,
+    triedLetters: penduState.triedLetters
+  });
+}
+
+function checkPenduVictory() {
+  return !penduState.displayWord.includes('_');
+}
+
 // ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
   console.log('Nouvel utilisateur connecté:', socket.id);
@@ -2197,6 +2324,206 @@ io.on('connection', (socket) => {
     endTurn(true);
   });
 
+  // ========== ÉVÉNEMENTS PENDU ==========
+  socket.on('join-pendu', (playerName) => {
+    socket.join('pendu');
+
+    penduState.players[socket.id] = {
+      name: playerName || `Joueur ${Object.keys(penduState.players).length + 1}`,
+      id: socket.id,
+      score: 0
+    };
+
+    if (!penduState.hostId) {
+      penduState.hostId = socket.id;
+      socket.emit('pendu-host-status', true);
+    }
+
+    socket.emit('pendu-game-state', {
+      isGameActive: penduState.isGameActive,
+      mode: penduState.mode,
+      displayWord: penduState.displayWord,
+      triedLetters: penduState.triedLetters,
+      errors: penduState.errors,
+      maxErrors: penduState.maxErrors,
+      timer: penduState.timer,
+      players: penduState.players,
+      category: penduState.category,
+      masterId: penduState.masterId
+    });
+
+    io.to('pendu').emit('pendu-player-joined', {
+      player: penduState.players[socket.id],
+      players: penduState.players
+    });
+  });
+
+  socket.on('start-pendu', (data) => {
+    if (socket.id !== penduState.hostId) {
+      socket.emit('error', 'Seul l\'hôte peut démarrer une partie');
+      return;
+    }
+
+    if (Object.keys(penduState.players).length < 1) {
+      socket.emit('error', 'Il faut au moins 1 joueur pour commencer');
+      return;
+    }
+
+    resetPendu();
+
+    penduState.mode = data.mode || 'coop';
+    penduState.category = data.category || 'general';
+
+    if (penduState.mode === 'coop') {
+      // Mode A : Mot aléatoire
+      penduState.word = getRandomWord(penduState.category);
+      penduState.displayWord = initializeDisplayWord(penduState.word);
+      penduState.isGameActive = true;
+
+      startPenduTimer();
+
+      io.to('pendu').emit('pendu-game-started', {
+        mode: 'coop',
+        category: penduState.category,
+        displayWord: penduState.displayWord,
+        wordLength: penduState.word.length,
+        message: `Partie coopérative démarrée ! Catégorie: ${penduState.category}`
+      });
+    } else if (penduState.mode === 'master') {
+      // Mode B : L'hôte choisit le mot
+      if (!data.customWord || data.customWord.length < 3) {
+        socket.emit('error', 'Le mot doit contenir au moins 3 lettres');
+        return;
+      }
+
+      const cleanWord = data.customWord.toUpperCase().replace(/[^A-Z]/g, '');
+      if (cleanWord.length < 3) {
+        socket.emit('error', 'Le mot ne contient pas assez de lettres valides (A-Z uniquement)');
+        return;
+      }
+
+      penduState.word = cleanWord;
+      penduState.displayWord = initializeDisplayWord(penduState.word);
+      penduState.masterId = socket.id;
+      penduState.isGameActive = true;
+
+      startPenduTimer();
+
+      // Envoyer le mot uniquement au maître
+      socket.emit('pendu-master-word', {
+        word: penduState.word
+      });
+
+      // Envoyer le jeu démarré à tous
+      io.to('pendu').emit('pendu-game-started', {
+        mode: 'master',
+        masterName: penduState.players[socket.id].name,
+        displayWord: penduState.displayWord,
+        wordLength: penduState.word.length,
+        message: `${penduState.players[socket.id].name} a choisi un mot secret !`
+      });
+    }
+  });
+
+  socket.on('pendu-guess-letter', (letter) => {
+    if (!penduState.isGameActive) {
+      socket.emit('error', 'Aucune partie en cours');
+      return;
+    }
+
+    const upperLetter = letter.toUpperCase();
+
+    if (!/^[A-Z]$/.test(upperLetter)) {
+      socket.emit('error', 'Veuillez entrer une seule lettre (A-Z)');
+      return;
+    }
+
+    if (penduState.triedLetters.includes(upperLetter)) {
+      socket.emit('error', 'Cette lettre a déjà été essayée');
+      return;
+    }
+
+    penduState.triedLetters.push(upperLetter);
+
+    const player = penduState.players[socket.id];
+    const isCorrect = penduState.word.includes(upperLetter);
+
+    if (!isCorrect) {
+      penduState.errors++;
+    }
+
+    penduState.displayWord = updateDisplayWord(penduState.word, penduState.triedLetters);
+
+    // Vérifier victoire
+    if (checkPenduVictory()) {
+      io.to('pendu').emit('pendu-letter-result', {
+        letter: upperLetter,
+        isCorrect,
+        playerName: player.name,
+        displayWord: penduState.displayWord,
+        errors: penduState.errors,
+        triedLetters: penduState.triedLetters
+      });
+
+      setTimeout(() => {
+        endPenduGame('won');
+      }, 500);
+      return;
+    }
+
+    // Vérifier défaite
+    if (penduState.errors >= penduState.maxErrors) {
+      io.to('pendu').emit('pendu-letter-result', {
+        letter: upperLetter,
+        isCorrect,
+        playerName: player.name,
+        displayWord: penduState.displayWord,
+        errors: penduState.errors,
+        triedLetters: penduState.triedLetters
+      });
+
+      setTimeout(() => {
+        endPenduGame('lost');
+      }, 500);
+      return;
+    }
+
+    // Continuer le jeu
+    io.to('pendu').emit('pendu-letter-result', {
+      letter: upperLetter,
+      isCorrect,
+      playerName: player.name,
+      displayWord: penduState.displayWord,
+      errors: penduState.errors,
+      triedLetters: penduState.triedLetters
+    });
+  });
+
+  socket.on('pendu-chat-message', (message) => {
+    const player = penduState.players[socket.id];
+
+    if (player && message.trim()) {
+      io.to('pendu').emit('pendu-chat-message', {
+        playerName: player.name,
+        message: message.trim(),
+        timestamp: new Date().toLocaleTimeString()
+      });
+    }
+  });
+
+  socket.on('pendu-new-game', () => {
+    if (socket.id !== penduState.hostId) {
+      socket.emit('error', 'Seul l\'hôte peut démarrer une nouvelle partie');
+      return;
+    }
+
+    resetPendu();
+
+    io.to('pendu').emit('pendu-ready-for-new-game', {
+      message: 'Prêt pour une nouvelle partie !'
+    });
+  });
+
   // ========== ÉVÉNEMENTS COMMUNS ==========
   socket.on('chat-message', (data) => {
     const { message, game } = data;
@@ -2288,6 +2615,32 @@ io.on('connection', (socket) => {
         });
       }
     }
+
+    // Nettoyer Pendu
+    if (penduState.players[socket.id]) {
+      delete penduState.players[socket.id];
+
+      if (penduState.hostId === socket.id) {
+        const remainingPlayers = Object.keys(penduState.players);
+        if (remainingPlayers.length > 0) {
+          penduState.hostId = remainingPlayers[0];
+          io.to(penduState.hostId).emit('pendu-host-status', true);
+        } else {
+          penduState.hostId = null;
+          resetPendu();
+        }
+      }
+
+      if (penduState.masterId === socket.id && penduState.isGameActive) {
+        // Si le maître se déconnecte en cours de partie, on termine la partie
+        endPenduGame('master-disconnected');
+      }
+
+      io.to('pendu').emit('pendu-player-left', {
+        playerId: socket.id,
+        players: penduState.players
+      });
+    }
   });
 });
 
@@ -2306,6 +2659,10 @@ app.get('/quiz', (req, res) => {
 
 app.get('/le10000', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'le10000.html'));
+});
+
+app.get('/pendu', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'pendu.html'));
 });
 
 const PORT = process.env.PORT || 3000;
