@@ -653,6 +653,17 @@
                 </select>
             </div>
 
+            <div id="difficulty-selection" style="margin-top: 30px; text-align: center;">
+                <label for="difficulty-select" style="display: block; margin-bottom: 10px; color: #333; font-weight: bold;">🎯 Difficulté (erreurs max)</label>
+                <select id="difficulty-select" style="padding: 12px 20px; border: 2px solid #ddd; border-radius: 10px; font-size: 1em;">
+                    <option value="0">♾️ Illimité (entraînement)</option>
+                    <option value="5">😰 Difficile (5 erreurs)</option>
+                    <option value="7" selected>😐 Normal (7 erreurs - défaut)</option>
+                    <option value="10">😌 Facile (10 erreurs)</option>
+                    <option value="15">😊 Très facile (15 erreurs)</option>
+                </select>
+            </div>
+
             <div id="custom-word-input" style="margin-top: 30px; text-align: center;">
                 <label for="custom-word" style="display: block; margin-bottom: 10px; color: #333; font-weight: bold;">Entrez votre mot secret (A-Z uniquement)</label>
                 <input type="text" id="custom-word" placeholder="Ex: ELEPHANT" maxlength="20" style="padding: 12px 20px; border: 2px solid #ddd; border-radius: 10px; font-size: 1em; text-transform: uppercase;">
@@ -839,6 +850,13 @@
                     updateTimer(data.timerDuration || 0, data.hasTimer);
                 }
 
+                // Initialiser le compteur d'erreurs
+                if (data.maxErrors === 0) {
+                    document.getElementById('errors-count').textContent = '0 (♾️ illimité)';
+                } else {
+                    document.getElementById('errors-count').textContent = `0 / ${data.maxErrors}`;
+                }
+
                 addChatMessage('Système', data.message);
                 enableKeyboard();
                 hideElement('mode-selection');
@@ -852,7 +870,13 @@
 
             socket.on('pendu-letter-result', (data) => {
                 document.getElementById('word-display').textContent = data.displayWord.split('').join(' ');
-                document.getElementById('errors-count').textContent = `${data.errors} / 7`;
+
+                // Afficher le compteur d'erreurs (♾️ si illimité)
+                if (data.maxErrors === 0) {
+                    document.getElementById('errors-count').textContent = `${data.errors} (♾️ illimité)`;
+                } else {
+                    document.getElementById('errors-count').textContent = `${data.errors} / ${data.maxErrors}`;
+                }
 
                 updateTriedLetters(data.triedLetters);
                 disableKey(data.letter, data.isCorrect);
@@ -863,7 +887,7 @@
                     setTimeout(() => document.querySelector('.word-display').classList.remove('letter-appear'), 500);
                 } else {
                     addChatMessage('Système', `✗ ${data.playerName} a essayé ${data.letter} (erreur)`, 'error');
-                    updateHangman(data.errors);
+                    updateHangman(data.errors, data.maxErrors);
                     document.querySelector('.hangman-area').classList.add('shake');
                     setTimeout(() => document.querySelector('.hangman-area').classList.remove('shake'), 400);
                 }
@@ -947,7 +971,8 @@
         function startGame() {
             const data = {
                 mode: currentMode,
-                timerDuration: parseInt(document.getElementById('timer-select').value)
+                timerDuration: parseInt(document.getElementById('timer-select').value),
+                maxErrors: parseInt(document.getElementById('difficulty-select').value)
             };
 
             if (currentMode === 'coop') {
@@ -1027,10 +1052,27 @@
             });
         }
 
-        function updateHangman(errors) {
-            if (errors > 0 && errors <= hangmanParts.length) {
-                const part = document.getElementById(hangmanParts[errors - 1]);
-                if (part) {
+        function updateHangman(errors, maxErrors = 7) {
+            // Calculer combien de parties du pendu afficher
+            let partsToShow = 0;
+
+            if (maxErrors === 0) {
+                // Mode illimité : afficher les parties jusqu'à 7, puis ne plus en ajouter
+                partsToShow = Math.min(errors, hangmanParts.length);
+            } else if (maxErrors <= hangmanParts.length) {
+                // Si maxErrors <= 7 : afficher proportionnellement
+                // Ex: 5 erreurs max → afficher une partie toutes les 0.71 erreurs
+                partsToShow = Math.min(Math.ceil((errors / maxErrors) * hangmanParts.length), hangmanParts.length);
+            } else {
+                // Si maxErrors > 7 : afficher les parties plus lentement
+                // Ex: 10 erreurs max → afficher une partie toutes les 1.43 erreurs
+                partsToShow = Math.min(Math.floor((errors / maxErrors) * hangmanParts.length), hangmanParts.length);
+            }
+
+            // Afficher les parties du pendu jusqu'à partsToShow
+            for (let i = 0; i < partsToShow && i < hangmanParts.length; i++) {
+                const part = document.getElementById(hangmanParts[i]);
+                if (part && part.style.opacity !== '1') {
                     part.style.opacity = '1';
                     part.style.transition = 'opacity 0.5s ease-out';
                 }
@@ -1167,7 +1209,13 @@
                     document.getElementById('word-display').textContent = state.displayWord.split('').join(' ');
                 }
 
-                document.getElementById('errors-count').textContent = `${state.errors} / ${state.maxErrors}`;
+                // Afficher le compteur d'erreurs
+                if (state.maxErrors === 0) {
+                    document.getElementById('errors-count').textContent = `${state.errors} (♾️ illimité)`;
+                } else {
+                    document.getElementById('errors-count').textContent = `${state.errors} / ${state.maxErrors}`;
+                }
+
                 updateTimer(state.timer, state.hasTimer !== false);
 
                 if (state.triedLetters) {
@@ -1179,9 +1227,8 @@
                     });
                 }
 
-                for (let i = 0; i < state.errors; i++) {
-                    updateHangman(i + 1);
-                }
+                // Afficher le pendu avec l'animation adaptative
+                updateHangman(state.errors, state.maxErrors);
             }
 
             if (state.players) {

@@ -1868,6 +1868,7 @@ function resetPendu() {
   penduState.errors = 0;
   penduState.timer = 300;
   penduState.timerDuration = 300;
+  penduState.maxErrors = 7; // Reset à 7 par défaut
   penduState.masterId = null;
   penduState.messages = [];
 }
@@ -2390,6 +2391,8 @@ io.on('connection', (socket) => {
     penduState.category = data.category || 'general';
     // Définir la durée du timer (en secondes) - 0 = pas de timer
     penduState.timerDuration = data.timerDuration !== undefined ? data.timerDuration : 300;
+    // Définir le nombre d'erreurs max - 0 = illimité
+    penduState.maxErrors = data.maxErrors !== undefined ? data.maxErrors : 7;
 
     if (penduState.mode === 'coop') {
       // Mode A : Mot aléatoire
@@ -2406,6 +2409,7 @@ io.on('connection', (socket) => {
         wordLength: penduState.word.length,
         hasTimer: penduState.timerDuration > 0,
         timerDuration: penduState.timerDuration,
+        maxErrors: penduState.maxErrors,
         message: `Partie coopérative démarrée ! Catégorie: ${penduState.category}`
       });
     } else if (penduState.mode === 'master') {
@@ -2441,6 +2445,7 @@ io.on('connection', (socket) => {
         wordLength: penduState.word.length,
         hasTimer: penduState.timerDuration > 0,
         timerDuration: penduState.timerDuration,
+        maxErrors: penduState.maxErrors,
         message: `${penduState.players[socket.id].name} a choisi un mot secret !`
       });
     }
@@ -2483,6 +2488,7 @@ io.on('connection', (socket) => {
         playerName: player.name,
         displayWord: penduState.displayWord,
         errors: penduState.errors,
+        maxErrors: penduState.maxErrors,
         triedLetters: penduState.triedLetters
       });
 
@@ -2492,14 +2498,15 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Vérifier défaite
-    if (penduState.errors >= penduState.maxErrors) {
+    // Vérifier défaite (sauf si maxErrors = 0 = illimité)
+    if (penduState.maxErrors > 0 && penduState.errors >= penduState.maxErrors) {
       io.to('pendu').emit('pendu-letter-result', {
         letter: upperLetter,
         isCorrect,
         playerName: player.name,
         displayWord: penduState.displayWord,
         errors: penduState.errors,
+        maxErrors: penduState.maxErrors,
         triedLetters: penduState.triedLetters
       });
 
@@ -2516,6 +2523,7 @@ io.on('connection', (socket) => {
       playerName: player.name,
       displayWord: penduState.displayWord,
       errors: penduState.errors,
+      maxErrors: penduState.maxErrors,
       triedLetters: penduState.triedLetters
     });
   });
