@@ -641,6 +641,18 @@
                 </select>
             </div>
 
+            <div id="timer-selection" style="margin-top: 30px; text-align: center;">
+                <label for="timer-select" style="display: block; margin-bottom: 10px; color: #333; font-weight: bold;">⏰ Durée du timer</label>
+                <select id="timer-select" style="padding: 12px 20px; border: 2px solid #ddd; border-radius: 10px; font-size: 1em;">
+                    <option value="0">♾️ Aucun (illimité)</option>
+                    <option value="180">⏱️ 3 minutes</option>
+                    <option value="300" selected>⏱️ 5 minutes (par défaut)</option>
+                    <option value="480">⏱️ 8 minutes</option>
+                    <option value="600">⏱️ 10 minutes</option>
+                    <option value="900">⏱️ 15 minutes</option>
+                </select>
+            </div>
+
             <div id="custom-word-input" style="margin-top: 30px; text-align: center;">
                 <label for="custom-word" style="display: block; margin-bottom: 10px; color: #333; font-weight: bold;">Entrez votre mot secret (A-Z uniquement)</label>
                 <input type="text" id="custom-word" placeholder="Ex: ELEPHANT" maxlength="20" style="padding: 12px 20px; border: 2px solid #ddd; border-radius: 10px; font-size: 1em; text-transform: uppercase;">
@@ -821,6 +833,12 @@
                 }
 
                 document.getElementById('word-display').textContent = data.displayWord.split('').join(' ');
+
+                // Initialiser le timer
+                if (data.hasTimer !== undefined) {
+                    updateTimer(data.timerDuration || 0, data.hasTimer);
+                }
+
                 addChatMessage('Système', data.message);
                 enableKeyboard();
                 hideElement('mode-selection');
@@ -854,7 +872,7 @@
             });
 
             socket.on('pendu-timer-update', (data) => {
-                updateTimer(data.timeLeft);
+                updateTimer(data.timeLeft, data.hasTimer !== false);
             });
 
             socket.on('pendu-game-over', (data) => {
@@ -928,7 +946,8 @@
 
         function startGame() {
             const data = {
-                mode: currentMode
+                mode: currentMode,
+                timerDuration: parseInt(document.getElementById('timer-select').value)
             };
 
             if (currentMode === 'coop') {
@@ -1040,11 +1059,17 @@
             document.getElementById('letters-remaining').textContent = 26 - triedCount;
         }
 
-        function updateTimer(seconds) {
-            const minutes = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            document.getElementById('timer').textContent =
-                `${minutes}:${secs.toString().padStart(2, '0')}`;
+        function updateTimer(seconds, hasTimer = true) {
+            const timerElement = document.getElementById('timer');
+            if (!hasTimer || seconds === 0) {
+                timerElement.textContent = '♾️ Illimité';
+                timerElement.parentElement.style.opacity = '0.6';
+            } else {
+                const minutes = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                timerElement.textContent = `${minutes}:${secs.toString().padStart(2, '0')}`;
+                timerElement.parentElement.style.opacity = '1';
+            }
         }
 
         function updatePlayersList(players) {
@@ -1143,7 +1168,7 @@
                 }
 
                 document.getElementById('errors-count').textContent = `${state.errors} / ${state.maxErrors}`;
-                updateTimer(state.timer);
+                updateTimer(state.timer, state.hasTimer !== false);
 
                 if (state.triedLetters) {
                     updateTriedLetters(state.triedLetters);

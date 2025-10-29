@@ -1832,7 +1832,8 @@ let penduState = {
   triedLetters: [],
   errors: 0,
   maxErrors: 7,
-  timer: 300, // 5 minutes en secondes
+  timer: 300, // Temps restant en secondes
+  timerDuration: 300, // Durée initiale du timer (0 = pas de timer)
   timerInterval: null,
   masterId: null, // Pour le mode B
   messages: []
@@ -1866,6 +1867,7 @@ function resetPendu() {
   penduState.triedLetters = [];
   penduState.errors = 0;
   penduState.timer = 300;
+  penduState.timerDuration = 300;
   penduState.masterId = null;
   penduState.messages = [];
 }
@@ -1875,12 +1877,23 @@ function startPenduTimer() {
     clearInterval(penduState.timerInterval);
   }
 
-  penduState.timer = 300; // 5 minutes
+  // Si timerDuration = 0, pas de timer
+  if (penduState.timerDuration === 0) {
+    penduState.timer = 0;
+    io.to('pendu').emit('pendu-timer-update', {
+      timeLeft: 0,
+      hasTimer: false
+    });
+    return;
+  }
+
+  penduState.timer = penduState.timerDuration;
   penduState.timerInterval = setInterval(() => {
     penduState.timer--;
 
     io.to('pendu').emit('pendu-timer-update', {
-      timeLeft: penduState.timer
+      timeLeft: penduState.timer,
+      hasTimer: true
     });
 
     if (penduState.timer <= 0) {
@@ -2347,6 +2360,8 @@ io.on('connection', (socket) => {
       errors: penduState.errors,
       maxErrors: penduState.maxErrors,
       timer: penduState.timer,
+      timerDuration: penduState.timerDuration,
+      hasTimer: penduState.timerDuration > 0,
       players: penduState.players,
       category: penduState.category,
       masterId: penduState.masterId
@@ -2373,6 +2388,8 @@ io.on('connection', (socket) => {
 
     penduState.mode = data.mode || 'coop';
     penduState.category = data.category || 'general';
+    // Définir la durée du timer (en secondes) - 0 = pas de timer
+    penduState.timerDuration = data.timerDuration !== undefined ? data.timerDuration : 300;
 
     if (penduState.mode === 'coop') {
       // Mode A : Mot aléatoire
@@ -2387,6 +2404,8 @@ io.on('connection', (socket) => {
         category: penduState.category,
         displayWord: penduState.displayWord,
         wordLength: penduState.word.length,
+        hasTimer: penduState.timerDuration > 0,
+        timerDuration: penduState.timerDuration,
         message: `Partie coopérative démarrée ! Catégorie: ${penduState.category}`
       });
     } else if (penduState.mode === 'master') {
@@ -2420,6 +2439,8 @@ io.on('connection', (socket) => {
         masterName: penduState.players[socket.id].name,
         displayWord: penduState.displayWord,
         wordLength: penduState.word.length,
+        hasTimer: penduState.timerDuration > 0,
+        timerDuration: penduState.timerDuration,
         message: `${penduState.players[socket.id].name} a choisi un mot secret !`
       });
     }
