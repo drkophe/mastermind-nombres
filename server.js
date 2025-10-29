@@ -1785,39 +1785,91 @@ function endGame(winnerId) {
 }
 
 // ==================== DONNÉES PENDU ====================
-// Système de mots par catégories (liste locale fiable)
+// Système de mots par catégories (liste locale étendue - 50+ mots par catégorie)
 const penduWords = {
   animaux: [
     'ELEPHANT', 'GIRAFE', 'KANGOUROU', 'CROCODILE', 'PAPILLON',
     'DAUPHIN', 'TIGRE', 'PINGOUIN', 'ZEBRE', 'TORTUE',
     'PERROQUET', 'AIGLE', 'CHAMEAU', 'RENARD', 'LAPIN',
-    'HIBOU', 'SERPENT', 'ECUREUIL', 'SAUTERELLE', 'MOUTON'
+    'HIBOU', 'SERPENT', 'ECUREUIL', 'SAUTERELLE', 'MOUTON',
+    'CHEVAL', 'VACHE', 'COCHON', 'POULET', 'CANARD',
+    'LION', 'LEOPARD', 'PANTHERE', 'GUEPARD', 'OURS',
+    'LOUP', 'CHIEN', 'CHAT', 'SOURIS', 'RAT',
+    'BALEINE', 'REQUIN', 'PIEUVRE', 'MEDUSE', 'CRABE',
+    'ARAIGNEE', 'FOURMI', 'ABEILLE', 'GUEPE', 'MOUCHE',
+    'LIBELLULE', 'SCARABEE', 'COCCINELLE', 'CRIQUET', 'CIGALE',
+    'RHINOCEROS', 'HIPPOPOTAME', 'GORILLE', 'CHIMPANZE', 'ORANG',
+    'ANTILOPE', 'GAZELLE', 'BUFFLE', 'BISON', 'RENNE'
   ],
   pays: [
     'FRANCE', 'ESPAGNE', 'ITALIE', 'PORTUGAL', 'ALLEMAGNE',
     'BELGIQUE', 'SUISSE', 'NORVEGE', 'SUEDE', 'POLOGNE',
     'GRECE', 'IRLANDE', 'ISLANDE', 'DANEMARK', 'FINLANDE',
-    'AUTRICHE', 'HONGRIE', 'ROUMANIE', 'BULGARIE', 'CROATIE'
+    'AUTRICHE', 'HONGRIE', 'ROUMANIE', 'BULGARIE', 'CROATIE',
+    'ANGLETERRE', 'ECOSSE', 'PAYS DE GALLES', 'RUSSIE', 'UKRAINE',
+    'TURQUIE', 'JAPON', 'CHINE', 'INDE', 'THAILANDE',
+    'VIETNAM', 'COREE', 'MONGOLIE', 'NEPAL', 'PAKISTAN',
+    'IRAN', 'IRAK', 'SYRIE', 'EGYPTE', 'MAROC',
+    'ALGERIE', 'TUNISIE', 'LIBYE', 'SENEGAL', 'MALI',
+    'NIGERIA', 'KENYA', 'TANZANIE', 'AFRIQUE DU SUD', 'MADAGASCAR',
+    'BRESIL', 'ARGENTINE', 'CHILI', 'PEROU', 'COLOMBIE',
+    'MEXIQUE', 'CANADA', 'CUBA', 'JAMAIQUE', 'PANAMA'
   ],
   technologie: [
     'ORDINATEUR', 'INTERNET', 'LOGICIEL', 'CLAVIER', 'SOURIS',
     'ECRAN', 'SERVEUR', 'ROUTEUR', 'ALGORITHME', 'PROGRAMMATION',
     'APPLICATION', 'SMARTPHONE', 'TABLETTE', 'BLUETOOTH', 'WIFI',
-    'PROCESSEUR', 'MEMOIRE', 'DISQUE', 'RESEAU', 'NAVIGATEUR'
+    'PROCESSEUR', 'MEMOIRE', 'DISQUE', 'RESEAU', 'NAVIGATEUR',
+    'BASE DE DONNEES', 'CLOUD', 'CYBERSECURITE', 'FIREWALL', 'ANTIVIRUS',
+    'JAVASCRIPT', 'PYTHON', 'JAVA', 'HTML', 'CSS',
+    'FRAMEWORK', 'DEVELOPPEUR', 'DEBUGGING', 'COMPILATION', 'INTERFACE',
+    'SYSTEME', 'CONSOLE', 'TERMINAL', 'COMMANDE', 'SCRIPT',
+    'INTELLIGENCE', 'MACHINE', 'RESEAU SOCIAL', 'MOTEUR DE RECHERCHE', 'COOKIES',
+    'PIXEL', 'RESOLUTION', 'STREAMING', 'TELECHARGEMENT', 'SAUVEGARDE',
+    'CRYPTAGE', 'PROTOCOLE', 'ADRESSE IP', 'DOMAINE', 'HEBERGEMENT',
+    'PLUGIN', 'EXTENSION', 'BARRE DE RECHERCHE', 'ONGLET', 'FENETRE'
   ],
   nourriture: [
     'PIZZA', 'HAMBURGER', 'CROISSANT', 'BAGUETTE', 'FROMAGE',
     'CHOCOLAT', 'PATISSERIE', 'SANDWICH', 'SALADE', 'SPAGHETTI',
     'OMELETTE', 'BRIOCHE', 'GATEAU', 'TARTE', 'CREPE',
-    'QUICHE', 'SOUPE', 'RAVIOLI', 'BISCUIT', 'BONBON'
+    'QUICHE', 'SOUPE', 'RAVIOLI', 'BISCUIT', 'BONBON',
+    'GLACE', 'SORBET', 'YAOURT', 'BEURRE', 'CONFITURE',
+    'MIEL', 'SUCRE', 'SEL', 'POIVRE', 'EPICE',
+    'PAIN', 'CEREALES', 'MUESLI', 'GRANOLA', 'FLOCONS',
+    'RIZ', 'PATES', 'COUSCOUS', 'QUINOA', 'LENTILLES',
+    'TOMATE', 'CAROTTE', 'POMME DE TERRE', 'OIGNON', 'AIL',
+    'POULET', 'BOEUF', 'PORC', 'AGNEAU', 'SAUMON',
+    'THON', 'CREVETTE', 'MOULE', 'HUITRE', 'COQUILLE',
+    'POMME', 'POIRE', 'BANANE', 'ORANGE', 'CITRON',
+    'FRAISE', 'CERISE', 'RAISIN', 'MELON', 'PASTEQUE'
   ],
   general: [
     'MAISON', 'JARDIN', 'VOITURE', 'AVION', 'TRAIN',
     'LIVRE', 'MUSIQUE', 'CINEMA', 'THEATRE', 'SPORT',
     'MONTAGNE', 'PLAGE', 'FORET', 'DESERT', 'OCEAN',
     'SOLEIL', 'LUNE', 'ETOILE', 'NUAGE', 'PLUIE',
-    'FLEUR', 'ARBRE', 'ROUTE', 'PONT', 'CHATEAU'
+    'FLEUR', 'ARBRE', 'ROUTE', 'PONT', 'CHATEAU',
+    'ECOLE', 'UNIVERSITE', 'HOPITAL', 'RESTAURANT', 'HOTEL',
+    'MUSEE', 'BIBLIOTHEQUE', 'EGLISE', 'CATHHEDRALE', 'MONUMENT',
+    'PARC', 'SQUARE', 'FONTAINE', 'STATUE', 'TOUR',
+    'RIVIERE', 'LAC', 'CASCADE', 'VOLCAN', 'GLACIER',
+    'VALLEE', 'COLLINE', 'PLATEAU', 'FALAISE', 'GROTTE',
+    'VILLE', 'VILLAGE', 'QUARTIER', 'RUE', 'AVENUE',
+    'PLACE', 'BOULEVARD', 'CHEMIN', 'SENTIER', 'AUTOROUTE',
+    'TELEPHONE', 'TELEVISION', 'RADIO', 'JOURNAL', 'MAGAZINE',
+    'CHAISE', 'TABLE', 'LIT', 'ARMOIRE', 'BUREAU',
+    'LAMPE', 'MIROIR', 'TAPIS', 'RIDEAU', 'COUSSIN'
   ]
+};
+
+// Historique des mots utilisés (pour éviter les répétitions)
+const penduWordHistory = {
+  animaux: [],
+  pays: [],
+  technologie: [],
+  nourriture: [],
+  general: []
 };
 
 // État du Pendu
@@ -1842,7 +1894,29 @@ let penduState = {
 // ==================== FONCTIONS PENDU ====================
 function getRandomWord(category) {
   const words = penduWords[category] || penduWords.general;
-  return words[Math.floor(Math.random() * words.length)];
+  const history = penduWordHistory[category] || [];
+
+  // Si l'historique contient plus de 50% des mots disponibles, on le reset
+  if (history.length >= Math.floor(words.length * 0.5)) {
+    penduWordHistory[category] = [];
+    console.log(`[Pendu] Historique de la catégorie "${category}" réinitialisé (${history.length} mots utilisés)`);
+  }
+
+  // Créer un pool de mots disponibles (non utilisés récemment)
+  const availableWords = words.filter(word => !penduWordHistory[category].includes(word));
+
+  // Si par sécurité il ne reste plus de mots disponibles, utiliser tous les mots
+  const wordPool = availableWords.length > 0 ? availableWords : words;
+
+  // Choisir un mot aléatoire
+  const selectedWord = wordPool[Math.floor(Math.random() * wordPool.length)];
+
+  // Ajouter le mot à l'historique
+  penduWordHistory[category].push(selectedWord);
+
+  console.log(`[Pendu] Mot sélectionné: ${selectedWord} (${availableWords.length} mots disponibles, ${penduWordHistory[category].length} dans l'historique)`);
+
+  return selectedWord;
 }
 
 function initializeDisplayWord(word) {
