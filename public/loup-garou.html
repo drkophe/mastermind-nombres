@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loup-Garou Multijoueur - Jeu de Déduction Sociale en Temps Réel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #c73866 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b35 0%, #c73866 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .back-button {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-50%) scale(1.05);
+        }
+
+        /* Écrans */
+        .screen {
+            display: none;
+            padding: 40px;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        /* Écran de connexion */
+        #login-screen {
+            text-align: center;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        #login-screen h2 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        .input-group label {
+            display: block;
+            text-align: left;
+            margin-bottom: 10px;
+            color: #666;
+            font-weight: bold;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #ff6b35;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ff6b35 0%, #c73866 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(255,107,53,0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: scale(1.05);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: scale(1.05);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+
+        /* Lobby */
+        #lobby-screen {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .lobby-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .lobby-header h2 {
+            color: #333;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .players-list {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .players-list h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .player-item {
+            background: white;
+            padding: 12px 20px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .player-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .player-badge {
+            background: #ff6b35;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .config-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .config-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .config-row label {
+            font-weight: bold;
+            color: #666;
+        }
+
+        .config-row input, .config-row select {
+            padding: 8px 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .lobby-actions {
+            text-align: center;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        /* Game Screen */
+        #game-screen {
+            max-width: 1400px;
+        }
+
+        .game-layout {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .game-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Colonne gauche - Infos du joueur */
+        .player-info-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            height: fit-content;
+        }
+
+        .role-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .role-card.loup {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+        }
+
+        .role-card.voyante {
+            background: linear-gradient(135deg, #7c4dff 0%, #5e35b1 100%);
+            color: white;
+        }
+
+        .role-card.sorciere {
+            background: linear-gradient(135deg, #00897b 0%, #00695c 100%);
+            color: white;
+        }
+
+        .role-card.chasseur {
+            background: linear-gradient(135deg, #ff6f00 0%, #e65100 100%);
+            color: white;
+        }
+
+        .role-card.villageois {
+            background: linear-gradient(135deg, #4fc3f7 0%, #0288d1 100%);
+            color: white;
+        }
+
+        .role-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .role-name {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .role-description {
+            font-size: 0.9em;
+            line-height: 1.4;
+            opacity: 0.95;
+        }
+
+        .game-info {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .game-info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .game-info-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .game-info-label {
+            color: #666;
+            font-weight: bold;
+        }
+
+        .game-info-value {
+            color: #333;
+            font-weight: bold;
+        }
+
+        /* Colonne centrale - Zone de jeu */
+        .game-main {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .phase-banner {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .phase-banner.night {
+            background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+            color: white;
+        }
+
+        .phase-banner.day {
+            background: linear-gradient(135deg, #ffd54f 0%, #ffb300 100%);
+            color: #333;
+        }
+
+        .phase-banner.vote {
+            background: linear-gradient(135deg, #e91e63 0%, #c2185b 100%);
+            color: white;
+        }
+
+        .phase-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .phase-title {
+            font-size: 1.8em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .phase-timer {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .action-zone {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .action-zone h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .action-message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: #e3f2fd;
+            color: #1565c0;
+            text-align: center;
+        }
+
+        .action-message.success {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .action-message.warning {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        .action-message.error {
+            background: #ffcdd2;
+            color: #c62828;
+        }
+
+        .target-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .target-btn {
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .target-btn:hover:not(:disabled) {
+            border-color: #ff6b35;
+            background: #fff3e0;
+            transform: translateY(-2px);
+        }
+
+        .target-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .target-btn.selected {
+            background: #ff6b35;
+            color: white;
+            border-color: #ff6b35;
+        }
+
+        .witch-actions {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .witch-potion {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            background: white;
+            text-align: center;
+        }
+
+        .witch-potion.used {
+            opacity: 0.5;
+            background: #f5f5f5;
+        }
+
+        .potion-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .event-feed {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .event-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #ff6b35;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .event-item.death {
+            border-left-color: #dc3545;
+        }
+
+        .event-item.elimination {
+            border-left-color: #e91e63;
+        }
+
+        /* Colonne droite - Joueurs et chat */
+        .side-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .players-alive {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .players-alive h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .player-status {
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .player-status.alive {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .player-status.dead {
+            background: #ffcdd2;
+            color: #c62828;
+            opacity: 0.6;
+        }
+
+        .player-status-icon {
+            font-size: 1.2em;
+        }
+
+        .chat-box {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .chat-box h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .chat-messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 2px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+        }
+
+        .chat-message {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: white;
+        }
+
+        .chat-message.wolf-chat {
+            background: #ffebee;
+            border-left: 3px solid #dc3545;
+        }
+
+        .chat-message.dead {
+            opacity: 0.6;
+        }
+
+        .chat-sender {
+            font-weight: bold;
+            color: #ff6b35;
+            margin-right: 8px;
+        }
+
+        .chat-time {
+            font-size: 0.75em;
+            color: #999;
+            margin-left: 8px;
+        }
+
+        .chat-text {
+            color: #333;
+            margin-top: 4px;
+        }
+
+        .chat-input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input-group input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95em;
+        }
+
+        .chat-input-group button {
+            padding: 10px 20px;
+        }
+
+        /* End Screen */
+        #end-screen {
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .victory-banner {
+            padding: 40px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+
+        .victory-banner.village {
+            background: linear-gradient(135deg, #4fc3f7 0%, #0288d1 100%);
+            color: white;
+        }
+
+        .victory-banner.loups {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+        }
+
+        .victory-icon {
+            font-size: 5em;
+            margin-bottom: 20px;
+        }
+
+        .victory-title {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .victory-message {
+            font-size: 1.3em;
+            opacity: 0.95;
+        }
+
+        .final-roles {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .final-roles h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .final-role-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .final-role-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .final-role-tag {
+            padding: 5px 15px;
+            border-radius: 15px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .final-role-tag.loup {
+            background: #dc3545;
+        }
+
+        .final-role-tag.villageois {
+            background: #4fc3f7;
+        }
+
+        .final-role-tag.voyante {
+            background: #7c4dff;
+        }
+
+        .final-role-tag.sorciere {
+            background: #00897b;
+        }
+
+        .final-role-tag.chasseur {
+            background: #ff6f00;
+        }
+
+        .end-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .screen.active {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .back-button {
+                position: static;
+                transform: none;
+                display: inline-block;
+                margin-bottom: 15px;
+            }
+
+            .screen {
+                padding: 20px;
+            }
+
+            .game-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .target-selector {
+                grid-template-columns: 1fr;
+            }
+
+            .witch-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-button">← Retour</a>
+            <h1>🐺 Loup-Garou Multijoueur</h1>
+            <p>Jeu de déduction sociale en temps réel</p>
+        </div>
+
+        <!-- Écran de connexion -->
+        <div id="login-screen" class="screen active">
+            <h2>Rejoindre une partie</h2>
+            <div class="input-group">
+                <label for="player-name">Votre pseudo</label>
+                <input type="text" id="player-name" placeholder="Entrez votre nom" maxlength="20" />
+            </div>
+            <button class="btn btn-primary" onclick="joinGame()">Rejoindre la partie</button>
+            <p style="margin-top: 20px; color: #666;">
+                <strong>6 à 18 joueurs recommandés</strong><br>
+                Rôles : Villageois, Loups-Garous, Voyante, Sorcière, Chasseur
+            </p>
+        </div>
+
+        <!-- Écran lobby -->
+        <div id="lobby-screen" class="screen">
+            <div class="lobby-header">
+                <h2>Salle d'attente</h2>
+                <p id="lobby-status">En attente de joueurs...</p>
+            </div>
+
+            <div class="players-list">
+                <h3>Joueurs connectés (<span id="player-count">0</span>)</h3>
+                <div id="players-container"></div>
+            </div>
+
+            <div class="config-section" id="host-config" style="display: none;">
+                <h3>⚙️ Configuration de la partie (Hôte uniquement)</h3>
+                <div class="config-row">
+                    <label>Durée de la nuit :</label>
+                    <select id="night-duration">
+                        <option value="45">45 secondes</option>
+                        <option value="60" selected>60 secondes</option>
+                        <option value="90">90 secondes</option>
+                        <option value="120">2 minutes</option>
+                    </select>
+                </div>
+                <div class="config-row">
+                    <label>Durée du jour :</label>
+                    <select id="day-duration">
+                        <option value="120">2 minutes</option>
+                        <option value="180" selected>3 minutes</option>
+                        <option value="240">4 minutes</option>
+                        <option value="300">5 minutes</option>
+                    </select>
+                </div>
+                <div class="config-row">
+                    <label>Durée du vote :</label>
+                    <select id="vote-duration">
+                        <option value="45">45 secondes</option>
+                        <option value="60" selected>60 secondes</option>
+                        <option value="90">90 secondes</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="lobby-actions">
+                <button class="btn btn-success" id="start-btn" style="display: none;" onclick="startGame()">
+                    Démarrer la partie
+                </button>
+                <button class="btn btn-secondary" onclick="location.href='/'">Quitter</button>
+            </div>
+        </div>
+
+        <!-- Écran de jeu -->
+        <div id="game-screen" class="screen">
+            <div class="game-layout">
+                <!-- Colonne gauche : Infos joueur -->
+                <div class="player-info-panel">
+                    <div id="role-card" class="role-card">
+                        <div class="role-icon">❓</div>
+                        <div class="role-name">En attente...</div>
+                        <div class="role-description">Votre rôle sera révélé au début de la partie.</div>
+                    </div>
+
+                    <div class="game-info">
+                        <div class="game-info-item">
+                            <span class="game-info-label">Tour :</span>
+                            <span class="game-info-value" id="round-number">-</span>
+                        </div>
+                        <div class="game-info-item">
+                            <span class="game-info-label">Phase :</span>
+                            <span class="game-info-value" id="phase-name">-</span>
+                        </div>
+                        <div class="game-info-item">
+                            <span class="game-info-label">Vivants :</span>
+                            <span class="game-info-value" id="alive-count">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Colonne centrale : Zone de jeu -->
+                <div class="game-main">
+                    <div id="phase-banner" class="phase-banner">
+                        <div class="phase-icon">🎮</div>
+                        <div class="phase-title">La partie commence...</div>
+                        <div class="phase-timer" id="timer-display">--:--</div>
+                    </div>
+
+                    <div class="action-zone">
+                        <h3 id="action-title">Actions</h3>
+                        <div id="action-message" class="action-message" style="display: none;"></div>
+                        <div id="action-content"></div>
+                    </div>
+
+                    <div class="event-feed">
+                        <h3>📜 Événements de la partie</h3>
+                        <div id="events-container"></div>
+                    </div>
+                </div>
+
+                <!-- Colonne droite : Joueurs et chat -->
+                <div class="side-panel">
+                    <div class="players-alive">
+                        <h3>Joueurs</h3>
+                        <div id="game-players-list"></div>
+                    </div>
+
+                    <div class="chat-box">
+                        <h3 id="chat-title">💬 Chat</h3>
+                        <div class="chat-messages" id="chat-messages"></div>
+                        <div class="chat-input-group">
+                            <input type="text" id="chat-input" placeholder="Message..." maxlength="200" />
+                            <button class="btn btn-primary" onclick="sendChatMessage()">Envoyer</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Écran de fin -->
+        <div id="end-screen" class="screen">
+            <div id="victory-banner" class="victory-banner">
+                <div class="victory-icon">🏆</div>
+                <div class="victory-title" id="victory-title">Partie terminée</div>
+                <div class="victory-message" id="victory-message"></div>
+            </div>
+
+            <div class="final-roles">
+                <h3>Rôles révélés</h3>
+                <div id="final-roles-list"></div>
+            </div>
+
+            <div class="end-actions">
+                <button class="btn btn-success" id="new-game-btn" style="display: none;" onclick="requestNewGame()">
+                    Nouvelle partie
+                </button>
+                <button class="btn btn-secondary" onclick="location.href='/'">Retour au menu</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let myRole = null;
+        let myId = null;
+        let isHost = false;
+        let currentPhase = 'lobby';
+        let players = {};
+        let selectedTarget = null;
+        let witchPotionsUsed = { heal: false, poison: false };
+
+        // Rôle icons
+        const roleIcons = {
+            'villageois': '👨‍🌾',
+            'loup': '🐺',
+            'voyante': '🔮',
+            'sorciere': '🧙‍♀️',
+            'chasseur': '🎯'
+        };
+
+        // Rejoindre la partie
+        function joinGame() {
+            const playerName = document.getElementById('player-name').value.trim();
+            if (!playerName) {
+                alert('Veuillez entrer un nom');
+                return;
+            }
+
+            socket.emit('join-loup', playerName);
+            myId = socket.id;
+        }
+
+        // Démarrer la partie (hôte uniquement)
+        function startGame() {
+            const config = {
+                nightDuration: parseInt(document.getElementById('night-duration').value),
+                dayDuration: parseInt(document.getElementById('day-duration').value),
+                voteDuration: parseInt(document.getElementById('vote-duration').value),
+                enabledRoles: ['voyante', 'sorciere', 'chasseur']
+            };
+
+            socket.emit('start-loup', config);
+        }
+
+        // Envoyer un message au chat
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+
+            if (message) {
+                socket.emit('loup-chat-message', message);
+                input.value = '';
+            }
+        }
+
+        // Gérer la touche Entrée pour le chat
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('chat-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendChatMessage();
+                }
+            });
+
+            document.getElementById('player-name').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    joinGame();
+                }
+            });
+        });
+
+        // Actions de nuit
+        function selectNightTarget(targetId) {
+            selectedTarget = targetId;
+
+            // Mettre à jour les boutons
+            document.querySelectorAll('.target-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            event.target.classList.add('selected');
+        }
+
+        function submitWolfVote() {
+            if (!selectedTarget) {
+                showActionMessage('Veuillez sélectionner une cible', 'warning');
+                return;
+            }
+
+            socket.emit('loup-night-action', {
+                action: 'wolf-vote',
+                targetId: selectedTarget
+            });
+        }
+
+        function submitSeerCheck() {
+            if (!selectedTarget) {
+                showActionMessage('Veuillez sélectionner une cible', 'warning');
+                return;
+            }
+
+            socket.emit('loup-night-action', {
+                action: 'seer-check',
+                targetId: selectedTarget
+            });
+        }
+
+        function useWitchHeal() {
+            socket.emit('loup-night-action', {
+                action: 'witch-heal'
+            });
+        }
+
+        function useWitchPoison() {
+            if (!selectedTarget) {
+                showActionMessage('Veuillez sélectionner une cible', 'warning');
+                return;
+            }
+
+            socket.emit('loup-night-action', {
+                action: 'witch-poison',
+                targetId: selectedTarget
+            });
+        }
+
+        // Vote du jour
+        function submitDayVote(targetId) {
+            socket.emit('loup-day-vote', targetId);
+        }
+
+        // Tir du chasseur
+        function hunterShoot(targetId) {
+            socket.emit('loup-hunter-shoot', targetId);
+        }
+
+        // Nouvelle partie
+        function requestNewGame() {
+            socket.emit('loup-new-game');
+        }
+
+        // Afficher un message d'action
+        function showActionMessage(message, type = 'info') {
+            const msgDiv = document.getElementById('action-message');
+            msgDiv.textContent = message;
+            msgDiv.className = `action-message ${type}`;
+            msgDiv.style.display = 'block';
+        }
+
+        // Changer d'écran
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        // Formater le temps
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Mettre à jour la liste des joueurs dans le lobby
+        function updateLobbyPlayers(playersList) {
+            const container = document.getElementById('players-container');
+            const count = document.getElementById('player-count');
+
+            count.textContent = playersList.length;
+            container.innerHTML = '';
+
+            playersList.forEach(player => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                div.innerHTML = `
+                    <span class="player-name">${player.name}</span>
+                    ${player.id === Object.keys(players)[0] ? '<span class="player-badge">Hôte</span>' : ''}
+                `;
+                container.appendChild(div);
+            });
+
+            // Mise à jour du statut
+            const status = document.getElementById('lobby-status');
+            if (playersList.length < 6) {
+                status.textContent = `En attente de ${6 - playersList.length} joueur(s) supplémentaire(s) minimum...`;
+                status.style.color = '#e65100';
+            } else {
+                status.textContent = `${playersList.length} joueurs prêts ! L'hôte peut démarrer la partie.`;
+                status.style.color = '#2e7d32';
+            }
+        }
+
+        // Mettre à jour la liste des joueurs en jeu
+        function updateGamePlayers(playersList) {
+            const container = document.getElementById('game-players-list');
+            container.innerHTML = '';
+
+            const aliveCount = playersList.filter(p => p.isAlive).length;
+            document.getElementById('alive-count').textContent = aliveCount;
+
+            playersList.forEach(player => {
+                const div = document.createElement('div');
+                div.className = `player-status ${player.isAlive ? 'alive' : 'dead'}`;
+                div.innerHTML = `
+                    <span>${player.name}</span>
+                    <span class="player-status-icon">${player.isAlive ? '💚' : '💀'}</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Afficher la carte de rôle
+        function displayRole(role, roleName, description) {
+            const card = document.getElementById('role-card');
+            card.className = `role-card ${role}`;
+            card.innerHTML = `
+                <div class="role-icon">${roleIcons[role] || '❓'}</div>
+                <div class="role-name">${roleName}</div>
+                <div class="role-description">${description}</div>
+            `;
+        }
+
+        // Afficher les actions selon la phase et le rôle
+        function displayPhaseActions(phase, role, playersList) {
+            const actionContent = document.getElementById('action-content');
+            const actionTitle = document.getElementById('action-title');
+
+            if (phase === 'night') {
+                actionTitle.textContent = '🌙 Actions de la nuit';
+
+                if (role === 'loup') {
+                    actionContent.innerHTML = `
+                        <p style="margin-bottom: 15px; color: #c62828; font-weight: bold;">
+                            🐺 Votez pour choisir votre victime avec les autres loups
+                        </p>
+                        <div class="target-selector" id="target-selector"></div>
+                        <button class="btn btn-danger" style="margin-top: 15px; width: 100%;" onclick="submitWolfVote()">
+                            Confirmer le vote
+                        </button>
+                    `;
+                    renderTargetSelector(playersList);
+                } else if (role === 'voyante') {
+                    actionContent.innerHTML = `
+                        <p style="margin-bottom: 15px; color: #5e35b1; font-weight: bold;">
+                            🔮 Choisissez un joueur pour découvrir son rôle
+                        </p>
+                        <div class="target-selector" id="target-selector"></div>
+                        <button class="btn btn-primary" style="margin-top: 15px; width: 100%;" onclick="submitSeerCheck()">
+                            Vérifier le joueur
+                        </button>
+                    `;
+                    renderTargetSelector(playersList);
+                } else if (role === 'sorciere') {
+                    actionContent.innerHTML = `
+                        <p style="margin-bottom: 15px; color: #00695c; font-weight: bold;">
+                            🧙‍♀️ Utilisez vos potions (usage unique)
+                        </p>
+                        <div class="witch-actions">
+                            <div class="witch-potion ${witchPotionsUsed.heal ? 'used' : ''}">
+                                <div class="potion-icon">💚</div>
+                                <div><strong>Potion de soin</strong></div>
+                                <div style="font-size: 0.85em; margin: 10px 0;">Sauver la victime</div>
+                                <button class="btn btn-success" onclick="useWitchHeal()" ${witchPotionsUsed.heal ? 'disabled' : ''}>
+                                    ${witchPotionsUsed.heal ? 'Déjà utilisée' : 'Utiliser'}
+                                </button>
+                            </div>
+                            <div class="witch-potion ${witchPotionsUsed.poison ? 'used' : ''}">
+                                <div class="potion-icon">☠️</div>
+                                <div><strong>Potion de poison</strong></div>
+                                <div style="font-size: 0.85em; margin: 10px 0;">Éliminer un joueur</div>
+                                <button class="btn btn-danger" onclick="showPoisonSelector()" ${witchPotionsUsed.poison ? 'disabled' : ''}>
+                                    ${witchPotionsUsed.poison ? 'Déjà utilisée' : 'Utiliser'}
+                                </button>
+                            </div>
+                        </div>
+                        <div id="poison-selector" style="display: none;">
+                            <p style="margin-bottom: 15px;">Choisissez qui empoisonner :</p>
+                            <div class="target-selector" id="target-selector"></div>
+                            <button class="btn btn-danger" style="margin-top: 15px; width: 100%;" onclick="useWitchPoison()">
+                                Confirmer l'empoisonnement
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    actionContent.innerHTML = `
+                        <p style="color: #666; text-align: center;">
+                            💤 Le village dort. Attendez le jour pour discuter et voter.
+                        </p>
+                    `;
+                }
+            } else if (phase === 'day') {
+                actionTitle.textContent = '☀️ Phase de discussion';
+                actionContent.innerHTML = `
+                    <p style="color: #666; text-align: center;">
+                        Utilisez le chat pour discuter avec les autres joueurs et identifier les suspects.
+                    </p>
+                `;
+            } else if (phase === 'vote') {
+                actionTitle.textContent = '🗳️ Phase de vote';
+                actionContent.innerHTML = `
+                    <p style="margin-bottom: 15px; font-weight: bold; text-align: center;">
+                        Votez pour éliminer un joueur suspect
+                    </p>
+                    <div class="target-selector" id="vote-selector"></div>
+                `;
+                renderVoteSelector(playersList);
+            }
+        }
+
+        function showPoisonSelector() {
+            const players = Object.entries(players).filter(([id, p]) => p.isAlive && id !== myId);
+            renderTargetSelector(players.map(([id, p]) => ({ id, name: p.name, isAlive: true })));
+            document.getElementById('poison-selector').style.display = 'block';
+        }
+
+        function renderTargetSelector(playersList) {
+            const container = document.getElementById('target-selector');
+            if (!container) return;
+
+            container.innerHTML = '';
+            playersList.filter(p => p.isAlive && p.id !== myId).forEach(player => {
+                const btn = document.createElement('button');
+                btn.className = 'target-btn';
+                btn.textContent = player.name;
+                btn.onclick = () => selectNightTarget(player.id);
+                container.appendChild(btn);
+            });
+        }
+
+        function renderVoteSelector(playersList) {
+            const container = document.getElementById('vote-selector');
+            if (!container) return;
+
+            container.innerHTML = '';
+            playersList.filter(p => p.isAlive && p.id !== myId).forEach(player => {
+                const btn = document.createElement('button');
+                btn.className = 'target-btn';
+                btn.textContent = player.name;
+                btn.onclick = () => submitDayVote(player.id);
+                container.appendChild(btn);
+            });
+        }
+
+        // Ajouter un événement
+        function addEvent(message, type = 'normal') {
+            const container = document.getElementById('events-container');
+            const div = document.createElement('div');
+            div.className = `event-item ${type}`;
+            div.textContent = message;
+            container.insertBefore(div, container.firstChild);
+
+            // Limiter à 20 événements
+            while (container.children.length > 20) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // Ajouter un message au chat
+        function addChatMessage(playerName, message, timestamp, isWolfChat = false, isAlive = true) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `chat-message ${isWolfChat ? 'wolf-chat' : ''} ${!isAlive ? 'dead' : ''}`;
+            div.innerHTML = `
+                <div>
+                    <span class="chat-sender">${playerName}${isWolfChat ? ' 🐺' : ''}</span>
+                    <span class="chat-time">${timestamp}</span>
+                </div>
+                <div class="chat-text">${message}</div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // ========== ÉVÉNEMENTS SOCKET.IO ==========
+
+        socket.on('loup-host-status', (status) => {
+            isHost = status;
+            if (isHost) {
+                document.getElementById('host-config').style.display = 'block';
+                document.getElementById('start-btn').style.display = 'inline-block';
+            }
+        });
+
+        socket.on('loup-game-state', (state) => {
+            players = state.players;
+            currentPhase = state.phase;
+
+            if (state.phase === 'lobby') {
+                showScreen('lobby-screen');
+                updateLobbyPlayers(state.players);
+            }
+        });
+
+        socket.on('loup-player-joined', (data) => {
+            players = data.players;
+            updateLobbyPlayers(data.players);
+        });
+
+        socket.on('loup-player-left', (data) => {
+            players = data.players;
+            updateLobbyPlayers(data.players);
+        });
+
+        socket.on('loup-game-started', (data) => {
+            showScreen('game-screen');
+            addEvent(data.message);
+        });
+
+        socket.on('loup-role-assigned', (data) => {
+            myRole = data.role;
+            displayRole(data.role, data.roleName, data.description);
+        });
+
+        socket.on('loup-phase-change', (data) => {
+            currentPhase = data.phase;
+            document.getElementById('round-number').textContent = data.roundNumber || '-';
+            document.getElementById('phase-name').textContent = data.phase;
+
+            const banner = document.getElementById('phase-banner');
+            banner.className = `phase-banner ${data.phase}`;
+
+            const phaseIcons = {
+                'night': '🌙',
+                'day': '☀️',
+                'vote': '🗳️'
+            };
+
+            banner.innerHTML = `
+                <div class="phase-icon">${phaseIcons[data.phase] || '🎮'}</div>
+                <div class="phase-title">${data.message}</div>
+                <div class="phase-timer" id="timer-display">${formatTime(data.duration)}</div>
+            `;
+
+            addEvent(data.message);
+
+            // Mettre à jour le titre du chat
+            if (data.phase === 'night' && myRole === 'loup') {
+                document.getElementById('chat-title').textContent = '💬 Chat des Loups 🐺';
+            } else {
+                document.getElementById('chat-title').textContent = '💬 Chat';
+            }
+
+            // Afficher les actions appropriées
+            displayPhaseActions(data.phase, myRole, Object.entries(players).map(([id, p]) => ({
+                id,
+                name: p.name,
+                isAlive: p.isAlive
+            })));
+        });
+
+        socket.on('loup-timer-update', (data) => {
+            document.getElementById('timer-display').textContent = formatTime(data.timeLeft);
+        });
+
+        socket.on('loup-night-action-result', (data) => {
+            if (data.success) {
+                showActionMessage(data.message, 'success');
+
+                if (data.action === 'seer') {
+                    // La voyante a reçu l'info
+                    selectedTarget = null;
+                }
+            }
+        });
+
+        socket.on('loup-wolf-vote-update', (data) => {
+            addEvent(`🐺 ${data.voterName} a voté pour ${data.targetName}`, 'normal');
+        });
+
+        socket.on('loup-day-event', (data) => {
+            addEvent(data.message, 'death');
+            if (data.players) {
+                updateGamePlayers(data.players);
+            }
+        });
+
+        socket.on('loup-vote-update', (data) => {
+            if (data.players) {
+                updateGamePlayers(data.players);
+            }
+        });
+
+        socket.on('loup-vote-confirmed', (data) => {
+            showActionMessage(`Vous avez voté pour ${data.targetName}`, 'success');
+        });
+
+        socket.on('loup-player-eliminated', (data) => {
+            addEvent(data.message, 'elimination');
+            if (data.players) {
+                updateGamePlayers(data.players);
+            }
+        });
+
+        socket.on('loup-hunter-must-shoot', (data) => {
+            showActionMessage(data.message, 'warning');
+
+            const actionContent = document.getElementById('action-content');
+            actionContent.innerHTML = `
+                <p style="margin-bottom: 15px; color: #e65100; font-weight: bold;">
+                    ${data.message}
+                </p>
+                <div class="target-selector" id="hunter-selector"></div>
+            `;
+
+            const alivePlayers = Object.entries(players)
+                .filter(([id, p]) => p.isAlive)
+                .map(([id, p]) => ({ id, name: p.name, isAlive: true }));
+
+            const container = document.getElementById('hunter-selector');
+            alivePlayers.forEach(player => {
+                const btn = document.createElement('button');
+                btn.className = 'target-btn';
+                btn.textContent = player.name;
+                btn.onclick = () => hunterShoot(player.id);
+                container.appendChild(btn);
+            });
+        });
+
+        socket.on('loup-hunter-shot', (data) => {
+            addEvent(data.message, 'death');
+            if (data.players) {
+                updateGamePlayers(data.players);
+            }
+        });
+
+        socket.on('loup-player-disconnected', (data) => {
+            addEvent(data.message, 'death');
+            if (data.players) {
+                updateGamePlayers(data.players);
+            }
+        });
+
+        socket.on('loup-game-ended', (data) => {
+            showScreen('end-screen');
+
+            const banner = document.getElementById('victory-banner');
+            banner.className = `victory-banner ${data.winner}`;
+
+            const icons = {
+                'village': '🎉',
+                'loups': '🐺'
+            };
+
+            document.getElementById('victory-title').textContent =
+                data.winner === 'village' ? 'Le Village a gagné !' : 'Les Loups-Garous ont gagné !';
+            document.getElementById('victory-message').textContent = data.message;
+            document.querySelector('.victory-icon').textContent = icons[data.winner];
+
+            // Afficher les rôles
+            const rolesList = document.getElementById('final-roles-list');
+            rolesList.innerHTML = '';
+
+            data.players.forEach(player => {
+                const div = document.createElement('div');
+                div.className = 'final-role-item';
+                div.innerHTML = `
+                    <span class="final-role-name">${player.name} ${player.isAlive ? '💚' : '💀'}</span>
+                    <span class="final-role-tag ${player.role}">${roleIcons[player.role]} ${getRoleFrenchName(player.role)}</span>
+                `;
+                rolesList.appendChild(div);
+            });
+
+            if (isHost) {
+                document.getElementById('new-game-btn').style.display = 'inline-block';
+            }
+        });
+
+        socket.on('loup-ready-for-new-game', (data) => {
+            showScreen('lobby-screen');
+            updateLobbyPlayers(data.players);
+            myRole = null;
+            selectedTarget = null;
+            witchPotionsUsed = { heal: false, poison: false };
+        });
+
+        socket.on('loup-chat-message', (data) => {
+            addChatMessage(data.playerName, data.message, data.timestamp, data.isWolfChat, data.isAlive);
+        });
+
+        socket.on('error', (message) => {
+            alert(message);
+        });
+
+        function getRoleFrenchName(role) {
+            const names = {
+                'villageois': 'Villageois',
+                'loup': 'Loup-Garou',
+                'voyante': 'Voyante',
+                'sorciere': 'Sorcière',
+                'chasseur': 'Chasseur'
+            };
+            return names[role] || role;
+        }
+    </script>
+</body>
+</html>
