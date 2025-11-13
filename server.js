@@ -2095,12 +2095,19 @@ function assignRoles() {
   const playerIds = Object.keys(loupGarouState.players);
   const playerCount = playerIds.length;
 
-  if (playerCount < 6) {
-    return { success: false, error: 'Il faut au moins 6 joueurs pour commencer' };
+  if (playerCount < 3) {
+    return { success: false, error: 'Il faut au moins 3 joueurs pour commencer' };
   }
 
-  // Calcul du nombre de loups (environ 30% des joueurs)
-  const wolfCount = Math.max(1, Math.floor(playerCount * 0.3));
+  // Calcul du nombre de loups adapté selon le nombre de joueurs
+  let wolfCount;
+  if (playerCount <= 4) {
+    wolfCount = 1; // 1 loup pour 3-4 joueurs
+  } else if (playerCount <= 7) {
+    wolfCount = 2; // 2 loups pour 5-7 joueurs
+  } else {
+    wolfCount = Math.max(2, Math.floor(playerCount * 0.3)); // 30% pour 8+ joueurs
+  }
 
   // Mélanger les joueurs
   const shuffledIds = [...playerIds].sort(() => Math.random() - 0.5);
@@ -2116,25 +2123,35 @@ function assignRoles() {
     roleIndex++;
   }
 
-  // Assigner les rôles spéciaux
-  if (enabledRoles.includes('voyante') && roleIndex < shuffledIds.length) {
+  // Assigner les rôles spéciaux (limités selon le nombre de joueurs)
+  // Pour 3 joueurs : 1 loup + 1 villageois + 1 rôle spécial max
+  // Pour 4 joueurs : 1 loup + 2 villageois + 1 rôle spécial
+  // Pour 5+ joueurs : distribution normale
+
+  let specialRolesCount = 0;
+  const maxSpecialRoles = playerCount <= 4 ? 1 : playerCount <= 6 ? 2 : 3;
+
+  if (enabledRoles.includes('voyante') && roleIndex < shuffledIds.length && specialRolesCount < maxSpecialRoles) {
     loupGarouState.players[shuffledIds[roleIndex]].role = ROLES.VOYANTE;
     loupGarouState.players[shuffledIds[roleIndex]].isAlive = true;
     loupGarouState.nightActions.seerSocketId = shuffledIds[roleIndex];
     roleIndex++;
+    specialRolesCount++;
   }
 
-  if (enabledRoles.includes('sorciere') && roleIndex < shuffledIds.length) {
+  if (enabledRoles.includes('sorciere') && roleIndex < shuffledIds.length && specialRolesCount < maxSpecialRoles) {
     loupGarouState.players[shuffledIds[roleIndex]].role = ROLES.SORCIERE;
     loupGarouState.players[shuffledIds[roleIndex]].isAlive = true;
     loupGarouState.nightActions.witchSocketId = shuffledIds[roleIndex];
     roleIndex++;
+    specialRolesCount++;
   }
 
-  if (enabledRoles.includes('chasseur') && roleIndex < shuffledIds.length) {
+  if (enabledRoles.includes('chasseur') && roleIndex < shuffledIds.length && specialRolesCount < maxSpecialRoles) {
     loupGarouState.players[shuffledIds[roleIndex]].role = ROLES.CHASSEUR;
     loupGarouState.players[shuffledIds[roleIndex]].isAlive = true;
     roleIndex++;
+    specialRolesCount++;
   }
 
   // Le reste devient villageois
@@ -3158,8 +3175,8 @@ io.on('connection', (socket) => {
     }
 
     const playerCount = Object.keys(loupGarouState.players).length;
-    if (playerCount < 6) {
-      socket.emit('error', 'Il faut au moins 6 joueurs pour commencer');
+    if (playerCount < 3) {
+      socket.emit('error', 'Il faut au moins 3 joueurs pour commencer');
       return;
     }
 
