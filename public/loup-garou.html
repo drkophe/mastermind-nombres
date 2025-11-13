@@ -807,7 +807,7 @@
             </div>
             <button class="btn btn-primary" onclick="joinGame()">Rejoindre la partie</button>
             <p style="margin-top: 20px; color: #666;">
-                <strong>6 à 18 joueurs recommandés</strong><br>
+                <strong>3 à 18 joueurs</strong><br>
                 Rôles : Villageois, Loups-Garous, Voyante, Sorcière, Chasseur
             </p>
         </div>
@@ -1131,8 +1131,8 @@
 
             // Mise à jour du statut
             const status = document.getElementById('lobby-status');
-            if (playersList.length < 6) {
-                status.textContent = `En attente de ${6 - playersList.length} joueur(s) supplémentaire(s) minimum...`;
+            if (playersList.length < 3) {
+                status.textContent = `En attente de ${3 - playersList.length} joueur(s) supplémentaire(s) minimum...`;
                 status.style.color = '#e65100';
             } else {
                 status.textContent = `${playersList.length} joueurs prêts ! L'hôte peut démarrer la partie.`;
