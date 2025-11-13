@@ -1999,6 +1999,495 @@ function checkPenduVictory() {
   return !penduState.displayWord.includes('_');
 }
 
+// ==================== LOUP-GAROU ====================
+
+// Constantes des rôles
+const ROLES = {
+  VILLAGEOIS: 'villageois',
+  LOUP: 'loup',
+  VOYANTE: 'voyante',
+  SORCIERE: 'sorciere',
+  CHASSEUR: 'chasseur'
+};
+
+// État du jeu Loup-Garou
+let loupGarouState = {
+  players: {},           // { socketId: { name, role, isAlive, hasVoted } }
+  hostId: null,
+  isGameActive: false,
+  phase: 'lobby',        // 'lobby', 'night', 'day', 'vote', 'ended'
+  roundNumber: 0,
+
+  // Configuration de la partie
+  config: {
+    nightDuration: 60,    // secondes
+    dayDuration: 180,     // secondes
+    voteDuration: 60,     // secondes
+    enabledRoles: ['voyante', 'sorciere', 'chasseur']
+  },
+
+  // Actions de la nuit
+  nightActions: {
+    wolvesTarget: null,           // ID du joueur ciblé par les loups
+    wolvesVotes: {},              // { socketId: targetId }
+    seerTarget: null,             // ID vérifié par la voyante
+    seerSocketId: null,           // Socket de la voyante
+    witchSave: false,             // Potion de soin utilisée cette nuit
+    witchKill: null,              // ID empoisonné
+    witchSocketId: null,          // Socket de la sorcière
+    witchPotionsUsed: {           // Potions déjà utilisées dans la partie
+      heal: false,
+      poison: false
+    },
+    nightVictim: null             // Victime effective de la nuit
+  },
+
+  // Vote du jour
+  dayVotes: {},          // { socketId: targetId }
+
+  // Timer
+  timer: 0,
+  timerInterval: null,
+
+  // Historique des événements
+  events: [],
+
+  // Chasseur éliminé (doit tirer)
+  hunterMustShoot: null  // socketId du chasseur qui doit tirer
+};
+
+// ==================== FONCTIONS UTILITAIRES LOUP-GAROU ====================
+
+function resetLoupGarou() {
+  if (loupGarouState.timerInterval) {
+    clearInterval(loupGarouState.timerInterval);
+    loupGarouState.timerInterval = null;
+  }
+
+  // On garde les joueurs et l'hôte, on reset juste l'état du jeu
+  Object.keys(loupGarouState.players).forEach(id => {
+    loupGarouState.players[id].isAlive = true;
+    loupGarouState.players[id].hasVoted = false;
+    loupGarouState.players[id].role = null;
+  });
+
+  loupGarouState.isGameActive = false;
+  loupGarouState.phase = 'lobby';
+  loupGarouState.roundNumber = 0;
+  loupGarouState.nightActions = {
+    wolvesTarget: null,
+    wolvesVotes: {},
+    seerTarget: null,
+    seerSocketId: null,
+    witchSave: false,
+    witchKill: null,
+    witchSocketId: null,
+    witchPotionsUsed: { heal: false, poison: false },
+    nightVictim: null
+  };
+  loupGarouState.dayVotes = {};
+  loupGarouState.timer = 0;
+  loupGarouState.events = [];
+  loupGarouState.hunterMustShoot = null;
+}
+
+function assignRoles() {
+  const playerIds = Object.keys(loupGarouState.players);
+  const playerCount = playerIds.length;
+
+  if (playerCount < 6) {
+    return { success: false, error: 'Il faut au moins 6 joueurs pour commencer' };
+  }
+
+  // Calcul du nombre de loups (environ 30% des joueurs)
+  const wolfCount = Math.max(1, Math.floor(playerCount * 0.3));
+
+  // Mélanger les joueurs
+  const shuffledIds = [...playerIds].sort(() => Math.random() - 0.5);
+
+  // Attribution des rôles
+  let roleIndex = 0;
+  const enabledRoles = loupGarouState.config.enabledRoles;
+
+  // Assigner les loups
+  for (let i = 0; i < wolfCount; i++) {
+    loupGarouState.players[shuffledIds[roleIndex]].role = ROLES.LOUP;
+    loupGarouState.players[shuffledIds[roleIndex]].isAlive = true;
+    roleIndex++;
+  }
+
+  // Assigner les rôles spéciaux
+  if (enabledRoles.includes('voyante') && roleIndex < shuffledIds.length) {
+    loupGarouState.players[shuffledIds[roleIndex]].role = ROLES.VOYANTE;
+    loupGarouState.players[shuffledIds[roleIndex]].isAlive = true;
+    loupGarouState.nightActions.seerSocketId = shuffledIds[roleIndex];
+    roleIndex++;
+  }
+
+  if (enabledRoles.includes('sorciere') && roleIndex < shuffledIds.length) {
+    loupGarouState.players[shuffledIds[roleIndex]].role = ROLES.SORCIERE;
+    loupGarouState.players[shuffledIds[roleIndex]].isAlive = true;
+    loupGarouState.nightActions.witchSocketId = shuffledIds[roleIndex];
+    roleIndex++;
+  }
+
+  if (enabledRoles.includes('chasseur') && roleIndex < shuffledIds.length) {
+    loupGarouState.players[shuffledIds[roleIndex]].role = ROLES.CHASSEUR;
+    loupGarouState.players[shuffledIds[roleIndex]].isAlive = true;
+    roleIndex++;
+  }
+
+  // Le reste devient villageois
+  for (let i = roleIndex; i < shuffledIds.length; i++) {
+    loupGarouState.players[shuffledIds[i]].role = ROLES.VILLAGEOIS;
+    loupGarouState.players[shuffledIds[i]].isAlive = true;
+  }
+
+  return { success: true };
+}
+
+function startNightPhase() {
+  loupGarouState.phase = 'night';
+  loupGarouState.roundNumber++;
+  loupGarouState.timer = loupGarouState.config.nightDuration;
+
+  // Reset des actions de la nuit
+  loupGarouState.nightActions.wolvesTarget = null;
+  loupGarouState.nightActions.wolvesVotes = {};
+  loupGarouState.nightActions.seerTarget = null;
+  loupGarouState.nightActions.witchSave = false;
+  loupGarouState.nightActions.witchKill = null;
+  loupGarouState.nightActions.nightVictim = null;
+
+  io.to('loup-garou').emit('loup-phase-change', {
+    phase: 'night',
+    roundNumber: loupGarouState.roundNumber,
+    duration: loupGarouState.config.nightDuration,
+    message: `🌙 Nuit ${loupGarouState.roundNumber} - Le village s'endort...`
+  });
+
+  startLoupTimer();
+}
+
+function processNightActions() {
+  // 1. Déterminer la cible des loups (vote majoritaire)
+  const wolvesVotes = loupGarouState.nightActions.wolvesVotes;
+  const voteCounts = {};
+
+  Object.values(wolvesVotes).forEach(targetId => {
+    voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+  });
+
+  let maxVotes = 0;
+  let targetId = null;
+
+  Object.entries(voteCounts).forEach(([id, count]) => {
+    if (count > maxVotes) {
+      maxVotes = count;
+      targetId = id;
+    }
+  });
+
+  loupGarouState.nightActions.wolvesTarget = targetId;
+  loupGarouState.nightActions.nightVictim = targetId;
+
+  // 2. Appliquer la potion de soin de la sorcière
+  if (loupGarouState.nightActions.witchSave && targetId) {
+    loupGarouState.nightActions.nightVictim = null;
+    loupGarouState.nightActions.witchPotionsUsed.heal = true;
+  }
+
+  // 3. Appliquer la potion de poison de la sorcière
+  if (loupGarouState.nightActions.witchKill) {
+    // Si quelqu'un est déjà mort, on a 2 morts
+    loupGarouState.nightActions.witchPotionsUsed.poison = true;
+  }
+
+  // Passer à la phase d'annonce des morts
+  announceDaybreak();
+}
+
+function announceDaybreak() {
+  const deaths = [];
+  const victim = loupGarouState.nightActions.nightVictim;
+  const poisoned = loupGarouState.nightActions.witchKill;
+
+  if (victim && loupGarouState.players[victim]) {
+    loupGarouState.players[victim].isAlive = false;
+    deaths.push({
+      id: victim,
+      name: loupGarouState.players[victim].name,
+      cause: 'loups'
+    });
+  }
+
+  if (poisoned && loupGarouState.players[poisoned]) {
+    loupGarouState.players[poisoned].isAlive = false;
+    deaths.push({
+      id: poisoned,
+      name: loupGarouState.players[poisoned].name,
+      cause: 'poison'
+    });
+  }
+
+  let message = '🌅 Le jour se lève sur le village...';
+
+  if (deaths.length === 0) {
+    message += '\n✨ Personne n\'est mort cette nuit !';
+  } else if (deaths.length === 1) {
+    message += `\n⚰️ ${deaths[0].name} a été trouvé mort ce matin.`;
+  } else {
+    message += `\n⚰️ ${deaths.map(d => d.name).join(' et ')} ont été trouvés morts ce matin.`;
+  }
+
+  io.to('loup-garou').emit('loup-day-event', {
+    type: 'daybreak',
+    deaths,
+    message,
+    players: getPublicPlayersList()
+  });
+
+  // Vérifier si un chasseur est mort
+  let hunterDied = false;
+  deaths.forEach(death => {
+    if (loupGarouState.players[death.id].role === ROLES.CHASSEUR) {
+      hunterDied = true;
+      loupGarouState.hunterMustShoot = death.id;
+    }
+  });
+
+  // Vérifier conditions de victoire
+  const victory = checkVictoryConditions();
+  if (victory) {
+    endLoupGame(victory.winner, victory.message);
+    return;
+  }
+
+  if (hunterDied) {
+    // Attendre que le chasseur tire
+    io.to(loupGarouState.hunterMustShoot).emit('loup-hunter-must-shoot', {
+      message: '🎯 Vous êtes mort ! En tant que Chasseur, vous devez emporter quelqu\'un avec vous.'
+    });
+  } else {
+    // Passer à la phase de jour
+    setTimeout(() => startDayPhase(), 3000);
+  }
+}
+
+function startDayPhase() {
+  loupGarouState.phase = 'day';
+  loupGarouState.timer = loupGarouState.config.dayDuration;
+
+  io.to('loup-garou').emit('loup-phase-change', {
+    phase: 'day',
+    duration: loupGarouState.config.dayDuration,
+    message: '☀️ Phase de discussion - Qui est suspect ?'
+  });
+
+  startLoupTimer();
+}
+
+function startVotePhase() {
+  loupGarouState.phase = 'vote';
+  loupGarouState.timer = loupGarouState.config.voteDuration;
+  loupGarouState.dayVotes = {};
+
+  // Reset hasVoted
+  Object.keys(loupGarouState.players).forEach(id => {
+    loupGarouState.players[id].hasVoted = false;
+  });
+
+  io.to('loup-garou').emit('loup-phase-change', {
+    phase: 'vote',
+    duration: loupGarouState.config.voteDuration,
+    message: '🗳️ Phase de vote - Qui doit être éliminé ?'
+  });
+
+  startLoupTimer();
+}
+
+function processVotes() {
+  const voteCounts = {};
+  const alivePlayers = Object.keys(loupGarouState.players).filter(id =>
+    loupGarouState.players[id].isAlive
+  );
+
+  // Compter les votes
+  Object.entries(loupGarouState.dayVotes).forEach(([voterId, targetId]) => {
+    if (loupGarouState.players[voterId].isAlive && loupGarouState.players[targetId]) {
+      voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+    }
+  });
+
+  // Trouver le joueur avec le plus de votes
+  let maxVotes = 0;
+  let eliminatedId = null;
+  let isTie = false;
+
+  Object.entries(voteCounts).forEach(([id, count]) => {
+    if (count > maxVotes) {
+      maxVotes = count;
+      eliminatedId = id;
+      isTie = false;
+    } else if (count === maxVotes && count > 0) {
+      isTie = true;
+    }
+  });
+
+  if (isTie || !eliminatedId || maxVotes === 0) {
+    io.to('loup-garou').emit('loup-player-eliminated', {
+      type: 'no-elimination',
+      message: '🤝 Égalité ou abstention - Personne n\'est éliminé',
+      voteCounts,
+      players: getPublicPlayersList()
+    });
+
+    // Retour à la nuit
+    setTimeout(() => startNightPhase(), 3000);
+    return;
+  }
+
+  // Éliminer le joueur
+  const eliminated = loupGarouState.players[eliminatedId];
+  eliminated.isAlive = false;
+
+  io.to('loup-garou').emit('loup-player-eliminated', {
+    type: 'eliminated',
+    playerId: eliminatedId,
+    playerName: eliminated.name,
+    role: eliminated.role,
+    voteCounts,
+    message: `⚰️ ${eliminated.name} a été éliminé par le village. C'était un(e) ${getRoleName(eliminated.role)}.`,
+    players: getPublicPlayersList()
+  });
+
+  // Vérifier si c'est le chasseur
+  if (eliminated.role === ROLES.CHASSEUR) {
+    loupGarouState.hunterMustShoot = eliminatedId;
+    setTimeout(() => {
+      io.to(eliminatedId).emit('loup-hunter-must-shoot', {
+        message: '🎯 Vous avez été éliminé ! En tant que Chasseur, vous devez emporter quelqu\'un avec vous.'
+      });
+    }, 2000);
+    return;
+  }
+
+  // Vérifier conditions de victoire
+  setTimeout(() => {
+    const victory = checkVictoryConditions();
+    if (victory) {
+      endLoupGame(victory.winner, victory.message);
+    } else {
+      startNightPhase();
+    }
+  }, 3000);
+}
+
+function checkVictoryConditions() {
+  const alivePlayers = Object.values(loupGarouState.players).filter(p => p.isAlive);
+  const aliveWolves = alivePlayers.filter(p => p.role === ROLES.LOUP);
+  const aliveVillagers = alivePlayers.filter(p => p.role !== ROLES.LOUP);
+
+  if (aliveWolves.length === 0) {
+    return {
+      winner: 'village',
+      message: '🎉 Le village a gagné ! Tous les loups-garous ont été éliminés.'
+    };
+  }
+
+  if (aliveWolves.length >= aliveVillagers.length) {
+    return {
+      winner: 'loups',
+      message: '🐺 Les loups-garous ont gagné ! Ils sont aussi nombreux que les villageois.'
+    };
+  }
+
+  return null;
+}
+
+function endLoupGame(winner, message) {
+  if (loupGarouState.timerInterval) {
+    clearInterval(loupGarouState.timerInterval);
+    loupGarouState.timerInterval = null;
+  }
+
+  loupGarouState.phase = 'ended';
+  loupGarouState.isGameActive = false;
+
+  // Révéler tous les rôles
+  const finalPlayers = Object.entries(loupGarouState.players).map(([id, player]) => ({
+    id,
+    name: player.name,
+    role: player.role,
+    isAlive: player.isAlive
+  }));
+
+  io.to('loup-garou').emit('loup-game-ended', {
+    winner,
+    message,
+    players: finalPlayers
+  });
+}
+
+function startLoupTimer() {
+  if (loupGarouState.timerInterval) {
+    clearInterval(loupGarouState.timerInterval);
+  }
+
+  loupGarouState.timerInterval = setInterval(() => {
+    loupGarouState.timer--;
+
+    io.to('loup-garou').emit('loup-timer-update', {
+      timeLeft: loupGarouState.timer
+    });
+
+    if (loupGarouState.timer <= 0) {
+      clearInterval(loupGarouState.timerInterval);
+      loupGarouState.timerInterval = null;
+
+      // Passer à la phase suivante
+      if (loupGarouState.phase === 'night') {
+        processNightActions();
+      } else if (loupGarouState.phase === 'day') {
+        startVotePhase();
+      } else if (loupGarouState.phase === 'vote') {
+        processVotes();
+      }
+    }
+  }, 1000);
+}
+
+function getPublicPlayersList() {
+  return Object.entries(loupGarouState.players).map(([id, player]) => ({
+    id,
+    name: player.name,
+    isAlive: player.isAlive,
+    hasVoted: player.hasVoted
+  }));
+}
+
+function getRoleName(role) {
+  const names = {
+    [ROLES.VILLAGEOIS]: 'Villageois',
+    [ROLES.LOUP]: 'Loup-Garou',
+    [ROLES.VOYANTE]: 'Voyante',
+    [ROLES.SORCIERE]: 'Sorcière',
+    [ROLES.CHASSEUR]: 'Chasseur'
+  };
+  return names[role] || role;
+}
+
+function getRoleDescription(role) {
+  const descriptions = {
+    [ROLES.VILLAGEOIS]: 'Vous êtes un simple villageois. Votre objectif est d\'éliminer tous les loups-garous en discutant le jour et en votant.',
+    [ROLES.LOUP]: 'Vous êtes un Loup-Garou ! Chaque nuit, votez avec les autres loups pour éliminer un villageois. Gagnez en devenant majoritaires.',
+    [ROLES.VOYANTE]: 'Chaque nuit, vous pouvez découvrir le rôle d\'un joueur. Utilisez cette information pour guider le village.',
+    [ROLES.SORCIERE]: 'Vous avez 2 potions (1 soin, 1 poison) à usage unique. Utilisez-les stratégiquement pour sauver ou éliminer des joueurs la nuit.',
+    [ROLES.CHASSEUR]: 'Si vous êtes éliminé (nuit ou jour), vous pouvez emporter un autre joueur avec vous en le désignant.'
+  };
+  return descriptions[role] || 'Rôle inconnu';
+}
+
 // ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
   console.log('Nouvel utilisateur connecté:', socket.id);
@@ -2627,6 +3116,319 @@ io.on('connection', (socket) => {
     });
   });
 
+  // ========== ÉVÉNEMENTS LOUP-GAROU ==========
+  socket.on('join-loup', (playerName) => {
+    socket.join('loup-garou');
+
+    loupGarouState.players[socket.id] = {
+      name: playerName || `Joueur ${Object.keys(loupGarouState.players).length + 1}`,
+      id: socket.id,
+      role: null,
+      isAlive: true,
+      hasVoted: false
+    };
+
+    if (!loupGarouState.hostId) {
+      loupGarouState.hostId = socket.id;
+      socket.emit('loup-host-status', true);
+    }
+
+    socket.emit('loup-game-state', {
+      phase: loupGarouState.phase,
+      isGameActive: loupGarouState.isGameActive,
+      players: getPublicPlayersList(),
+      config: loupGarouState.config,
+      roundNumber: loupGarouState.roundNumber
+    });
+
+    io.to('loup-garou').emit('loup-player-joined', {
+      player: {
+        id: socket.id,
+        name: loupGarouState.players[socket.id].name,
+        isAlive: true
+      },
+      players: getPublicPlayersList()
+    });
+  });
+
+  socket.on('start-loup', (config) => {
+    if (socket.id !== loupGarouState.hostId) {
+      socket.emit('error', 'Seul l\'hôte peut démarrer une partie');
+      return;
+    }
+
+    const playerCount = Object.keys(loupGarouState.players).length;
+    if (playerCount < 6) {
+      socket.emit('error', 'Il faut au moins 6 joueurs pour commencer');
+      return;
+    }
+
+    // Appliquer la configuration si fournie
+    if (config) {
+      if (config.nightDuration) loupGarouState.config.nightDuration = config.nightDuration;
+      if (config.dayDuration) loupGarouState.config.dayDuration = config.dayDuration;
+      if (config.voteDuration) loupGarouState.config.voteDuration = config.voteDuration;
+      if (config.enabledRoles) loupGarouState.config.enabledRoles = config.enabledRoles;
+    }
+
+    // Attribution des rôles
+    const result = assignRoles();
+    if (!result.success) {
+      socket.emit('error', result.error);
+      return;
+    }
+
+    loupGarouState.isGameActive = true;
+
+    // Envoyer le rôle à chaque joueur (privé)
+    Object.entries(loupGarouState.players).forEach(([playerId, player]) => {
+      io.to(playerId).emit('loup-role-assigned', {
+        role: player.role,
+        roleName: getRoleName(player.role),
+        description: getRoleDescription(player.role)
+      });
+    });
+
+    // Annoncer le début de la partie
+    io.to('loup-garou').emit('loup-game-started', {
+      message: '🎮 La partie commence ! Consultez votre rôle en haut de l\'écran.',
+      playerCount,
+      config: loupGarouState.config
+    });
+
+    // Commencer la première nuit après 3 secondes
+    setTimeout(() => startNightPhase(), 3000);
+  });
+
+  socket.on('loup-night-action', (data) => {
+    if (!loupGarouState.isGameActive || loupGarouState.phase !== 'night') {
+      socket.emit('error', 'Ce n\'est pas la phase de nuit');
+      return;
+    }
+
+    const player = loupGarouState.players[socket.id];
+    if (!player || !player.isAlive) {
+      socket.emit('error', 'Vous ne pouvez pas agir');
+      return;
+    }
+
+    // Action des loups-garous
+    if (data.action === 'wolf-vote' && player.role === ROLES.LOUP) {
+      const targetId = data.targetId;
+      if (!loupGarouState.players[targetId] || !loupGarouState.players[targetId].isAlive) {
+        socket.emit('error', 'Cible invalide');
+        return;
+      }
+
+      loupGarouState.nightActions.wolvesVotes[socket.id] = targetId;
+
+      socket.emit('loup-night-action-result', {
+        success: true,
+        message: `Vous avez voté pour attaquer ${loupGarouState.players[targetId].name}`
+      });
+
+      // Notifier les autres loups
+      Object.entries(loupGarouState.players).forEach(([id, p]) => {
+        if (p.role === ROLES.LOUP && p.isAlive && id !== socket.id) {
+          io.to(id).emit('loup-wolf-vote-update', {
+            voterName: player.name,
+            targetName: loupGarouState.players[targetId].name
+          });
+        }
+      });
+    }
+
+    // Action de la voyante
+    if (data.action === 'seer-check' && player.role === ROLES.VOYANTE) {
+      const targetId = data.targetId;
+      if (!loupGarouState.players[targetId] || !loupGarouState.players[targetId].isAlive) {
+        socket.emit('error', 'Cible invalide');
+        return;
+      }
+
+      if (loupGarouState.nightActions.seerTarget) {
+        socket.emit('error', 'Vous avez déjà utilisé votre pouvoir cette nuit');
+        return;
+      }
+
+      loupGarouState.nightActions.seerTarget = targetId;
+      const targetRole = loupGarouState.players[targetId].role;
+      const isWolf = targetRole === ROLES.LOUP;
+
+      socket.emit('loup-night-action-result', {
+        success: true,
+        action: 'seer',
+        targetName: loupGarouState.players[targetId].name,
+        isWolf,
+        message: isWolf
+          ? `🐺 ${loupGarouState.players[targetId].name} est un Loup-Garou !`
+          : `✅ ${loupGarouState.players[targetId].name} n'est pas un Loup-Garou.`
+      });
+    }
+
+    // Action de la sorcière - potion de soin
+    if (data.action === 'witch-heal' && player.role === ROLES.SORCIERE) {
+      if (loupGarouState.nightActions.witchPotionsUsed.heal) {
+        socket.emit('error', 'Vous avez déjà utilisé votre potion de soin');
+        return;
+      }
+
+      if (loupGarouState.nightActions.witchSave) {
+        socket.emit('error', 'Vous avez déjà utilisé cette potion cette nuit');
+        return;
+      }
+
+      loupGarouState.nightActions.witchSave = true;
+
+      socket.emit('loup-night-action-result', {
+        success: true,
+        message: '💚 Vous avez utilisé votre potion de soin. La victime sera sauvée.'
+      });
+    }
+
+    // Action de la sorcière - potion de poison
+    if (data.action === 'witch-poison' && player.role === ROLES.SORCIERE) {
+      const targetId = data.targetId;
+
+      if (loupGarouState.nightActions.witchPotionsUsed.poison) {
+        socket.emit('error', 'Vous avez déjà utilisé votre potion de poison');
+        return;
+      }
+
+      if (!loupGarouState.players[targetId] || !loupGarouState.players[targetId].isAlive) {
+        socket.emit('error', 'Cible invalide');
+        return;
+      }
+
+      if (loupGarouState.nightActions.witchKill) {
+        socket.emit('error', 'Vous avez déjà utilisé cette potion cette nuit');
+        return;
+      }
+
+      loupGarouState.nightActions.witchKill = targetId;
+
+      socket.emit('loup-night-action-result', {
+        success: true,
+        message: `☠️ Vous avez empoisonné ${loupGarouState.players[targetId].name}.`
+      });
+    }
+  });
+
+  socket.on('loup-day-vote', (targetId) => {
+    if (!loupGarouState.isGameActive || loupGarouState.phase !== 'vote') {
+      socket.emit('error', 'Ce n\'est pas la phase de vote');
+      return;
+    }
+
+    const player = loupGarouState.players[socket.id];
+    if (!player || !player.isAlive) {
+      socket.emit('error', 'Vous ne pouvez pas voter');
+      return;
+    }
+
+    if (!loupGarouState.players[targetId] || !loupGarouState.players[targetId].isAlive) {
+      socket.emit('error', 'Cible invalide');
+      return;
+    }
+
+    loupGarouState.dayVotes[socket.id] = targetId;
+    loupGarouState.players[socket.id].hasVoted = true;
+
+    socket.emit('loup-vote-confirmed', {
+      targetName: loupGarouState.players[targetId].name
+    });
+
+    // Notifier tous les joueurs qu'un vote a été enregistré
+    io.to('loup-garou').emit('loup-vote-update', {
+      voterName: player.name,
+      hasVoted: true,
+      players: getPublicPlayersList()
+    });
+  });
+
+  socket.on('loup-hunter-shoot', (targetId) => {
+    if (socket.id !== loupGarouState.hunterMustShoot) {
+      socket.emit('error', 'Vous n\'êtes pas le chasseur');
+      return;
+    }
+
+    if (!loupGarouState.players[targetId] || !loupGarouState.players[targetId].isAlive) {
+      socket.emit('error', 'Cible invalide');
+      return;
+    }
+
+    const target = loupGarouState.players[targetId];
+    target.isAlive = false;
+
+    io.to('loup-garou').emit('loup-hunter-shot', {
+      hunterName: loupGarouState.players[socket.id].name,
+      targetName: target.name,
+      targetRole: target.role,
+      message: `🎯 Le Chasseur a emporté ${target.name} avec lui ! C'était un(e) ${getRoleName(target.role)}.`,
+      players: getPublicPlayersList()
+    });
+
+    loupGarouState.hunterMustShoot = null;
+
+    // Vérifier conditions de victoire
+    setTimeout(() => {
+      const victory = checkVictoryConditions();
+      if (victory) {
+        endLoupGame(victory.winner, victory.message);
+      } else {
+        // Continuer le jeu selon la phase
+        if (loupGarouState.phase === 'night' || loupGarouState.phase === 'day') {
+          startNightPhase();
+        } else {
+          startDayPhase();
+        }
+      }
+    }, 3000);
+  });
+
+  socket.on('loup-chat-message', (message) => {
+    const player = loupGarouState.players[socket.id];
+
+    if (player && message.trim()) {
+      // Si c'est la nuit et que le joueur est un loup, envoyer uniquement aux loups
+      if (loupGarouState.phase === 'night' && player.role === ROLES.LOUP && player.isAlive) {
+        Object.entries(loupGarouState.players).forEach(([id, p]) => {
+          if (p.role === ROLES.LOUP && p.isAlive) {
+            io.to(id).emit('loup-chat-message', {
+              playerName: player.name,
+              message: message.trim(),
+              timestamp: new Date().toLocaleTimeString(),
+              isWolfChat: true
+            });
+          }
+        });
+      } else {
+        // Chat public (jour)
+        io.to('loup-garou').emit('loup-chat-message', {
+          playerName: player.name,
+          message: message.trim(),
+          timestamp: new Date().toLocaleTimeString(),
+          isAlive: player.isAlive,
+          isWolfChat: false
+        });
+      }
+    }
+  });
+
+  socket.on('loup-new-game', () => {
+    if (socket.id !== loupGarouState.hostId) {
+      socket.emit('error', 'Seul l\'hôte peut démarrer une nouvelle partie');
+      return;
+    }
+
+    resetLoupGarou();
+
+    io.to('loup-garou').emit('loup-ready-for-new-game', {
+      message: 'Prêt pour une nouvelle partie !',
+      players: getPublicPlayersList()
+    });
+  });
+
   // ========== ÉVÉNEMENTS COMMUNS ==========
   socket.on('chat-message', (data) => {
     const { message, game } = data;
@@ -2744,6 +3546,53 @@ io.on('connection', (socket) => {
         players: penduState.players
       });
     }
+
+    // Nettoyer Loup-Garou
+    if (loupGarouState.players[socket.id]) {
+      const player = loupGarouState.players[socket.id];
+
+      // Si le joueur est vivant et que la partie est active, marquer comme mort
+      if (loupGarouState.isGameActive && player.isAlive) {
+        player.isAlive = false;
+
+        io.to('loup-garou').emit('loup-player-disconnected', {
+          playerId: socket.id,
+          playerName: player.name,
+          message: `${player.name} s'est déconnecté et est considéré comme mort.`,
+          players: getPublicPlayersList()
+        });
+
+        // Vérifier les conditions de victoire
+        setTimeout(() => {
+          const victory = checkVictoryConditions();
+          if (victory) {
+            endLoupGame(victory.winner, victory.message);
+          }
+        }, 1000);
+      } else {
+        // Sinon simplement supprimer le joueur
+        delete loupGarouState.players[socket.id];
+      }
+
+      // Transfert d'hôte si nécessaire
+      if (loupGarouState.hostId === socket.id) {
+        const remainingPlayers = Object.keys(loupGarouState.players);
+        if (remainingPlayers.length > 0) {
+          loupGarouState.hostId = remainingPlayers[0];
+          io.to(loupGarouState.hostId).emit('loup-host-status', true);
+        } else {
+          loupGarouState.hostId = null;
+          resetLoupGarou();
+        }
+      }
+
+      if (!loupGarouState.isGameActive) {
+        io.to('loup-garou').emit('loup-player-left', {
+          playerId: socket.id,
+          players: getPublicPlayersList()
+        });
+      }
+    }
   });
 });
 
@@ -2766,6 +3615,10 @@ app.get('/le10000', (req, res) => {
 
 app.get('/pendu', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'pendu.html'));
+});
+
+app.get('/loup-garou', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'loup-garou.html'));
 });
 
 const PORT = process.env.PORT || 3000;
