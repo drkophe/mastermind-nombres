@@ -445,6 +445,7 @@
             <a href="/" class="back-button">← Accueil</a>
             <h1>🏴‍☠️ 4 Images 1 Mot — One Piece</h1>
             <p>Devinez le personnage avec le moins d'indices possible !</p>
+            <p id="catalogue-info" style="font-size:0.85em; opacity:0.85; margin-top:4px;"></p>
         </div>
 
         <div class="main-content">
@@ -469,7 +470,8 @@
                             <option value="10" selected>10 (normal)</option>
                             <option value="15">15 (long)</option>
                             <option value="20">20 (marathon)</option>
-                            <option value="30">30 (intégrale)</option>
+                            <option value="30">30 (très long)</option>
+                            <option value="50">50 (interminable)</option>
                         </select>
                     </div>
 
@@ -629,6 +631,11 @@
                 scoresCache = state.scores || {};
                 updatePlayersList();
                 updateScores();
+
+                if (state.characterCount) {
+                    document.getElementById('catalogue-info').textContent =
+                        state.characterCount + ' personnages au catalogue · les fautes de frappe sont tolérées';
+                }
 
                 if (!isHost && !gameActive) {
                     document.getElementById('lobby-message').classList.remove('hidden');

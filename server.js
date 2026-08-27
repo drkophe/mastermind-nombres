@@ -2547,11 +2547,105 @@ function normalizeAnswer(value) {
     .replace(/[^a-z0-9]/g, '');
 }
 
+// Tolérance aux fautes de frappe, en nombre de corrections admises selon la
+// longueur de la réponse attendue. Volontairement stricte sur les noms courts
+// (Kuro / Kuma / Mr 2...) où une lettre change complètement le personnage.
+function maxTypoDistance(length) {
+  if (length <= 3) return 0;   // Ace, Law, Kid... : une lettre change tout
+  if (length <= 7) return 1;   // Zoro -> Zoao, Hawkins -> Hawkin, Mihawk -> Miwawk
+  if (length <= 12) return 2;  // Katakuri, Doflamingo...
+  return 3;                    // noms complets à rallonge
+}
+
+// Distance de Damerau-Levenshtein (avec inversion de deux lettres adjacentes),
+// abandonnée dès qu'on dépasse la tolérance pour rester rapide.
+function typoDistance(a, b, limit) {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  if (a === b) return 0;
+
+  let previous = [];
+  let current = [];
+
+  for (let j = 0; j <= b.length; j++) previous[j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    const beforePrevious = previous.slice();
+    current = [i];
+    let rowMin = i;
+
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let value = Math.min(
+        current[j - 1] + 1,      // insertion
+        previous[j] + 1,         // suppression
+        previous[j - 1] + cost   // substitution
+      );
+
+      // inversion de deux lettres (ex : "Zorro" tapé "Zroro")
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        value = Math.min(value, beforePrevious[j - 2] + 1);
+      }
+
+      current[j] = value;
+      if (value < rowMin) rowMin = value;
+    }
+
+    if (rowMin > limit) return limit + 1; // inutile de continuer
+    previous = current;
+  }
+
+  return previous[b.length];
+}
+
+// Deux lettres adjacentes inversées (Garp -> Grap) : faute très courante,
+// tolérée même sur les noms courts car elle ne peut pas désigner quelqu'un d'autre.
+function isAdjacentSwap(a, b) {
+  if (a.length !== b.length) return false;
+  const diff = [];
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) diff.push(i);
+    if (diff.length > 2) return false;
+  }
+  return diff.length === 2
+    && diff[1] === diff[0] + 1
+    && a[diff[0]] === b[diff[1]]
+    && a[diff[1]] === b[diff[0]];
+}
+
+// Toutes les réponses valides du catalogue : si un joueur tape exactement le nom
+// d'un AUTRE personnage, c'est une vraie erreur, pas une faute de frappe.
+const allKnownAnswers = new Set();
+onePieceCharacters.forEach(character => {
+  character.answers.forEach(answer => allKnownAnswers.add(normalizeAnswer(answer)));
+  allKnownAnswers.add(normalizeAnswer(character.name));
+});
+
 function isCorrectAnswer(character, guess) {
   const normalized = normalizeAnswer(guess);
   if (!normalized) return false;
-  return character.answers.some(answer => normalizeAnswer(answer) === normalized)
-    || normalizeAnswer(character.name) === normalized;
+
+  const candidates = character.answers.map(normalizeAnswer);
+  candidates.push(normalizeAnswer(character.name));
+
+  // 1) correspondance exacte
+  if (candidates.includes(normalized)) return true;
+
+  // 2) le joueur a nommé précisément un autre personnage : c'est une erreur
+  if (allKnownAnswers.has(normalized)) return false;
+
+  // 3) correspondance approximative (fautes de frappe)
+  const guessDigits = normalized.replace(/\D/g, '');
+
+  return candidates.some(candidate => {
+    if (!candidate) return false;
+    // Les chiffres font partie de l'identité (Mr. 2 / Mr. 5, Punk-01 / Punk-06...) :
+    // une différence de chiffre est une vraie erreur, pas une faute de frappe.
+    if (candidate.replace(/\D/g, '') !== guessDigits) return false;
+    if (isAdjacentSwap(normalized, candidate)) return true;
+    const limit = maxTypoDistance(candidate.length);
+    if (limit === 0) return false;
+    return typoDistance(normalized, candidate, limit) <= limit;
+  });
 }
 
 // Tirage des personnages avec courbe de difficulté
