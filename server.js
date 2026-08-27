@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
+const { onePieceCharacters } = require('./data/onePieceCharacters');
 
 const app = express();
 const server = http.createServer(app);
@@ -2505,6 +2506,348 @@ function getRoleDescription(role) {
   return descriptions[role] || 'Rôle inconnu';
 }
 
+// ==================== 4 IMAGES 1 MOT — ONE PIECE ====================
+// Barème par défaut : 1 indice = 4 pts, 2 indices = 3 pts, etc.
+const QUATRE_IMAGES_DEFAULT_POINTS = [4, 3, 2, 1];
+const QUATRE_IMAGES_REVEAL_DELAY = 7000; // pause entre deux mots (ms)
+
+// État du 4 Images 1 Mot
+let quatreImagesState = {
+  players: {},
+  scores: {},
+  hostId: null,
+  isGameActive: false,
+  characters: [],          // personnages tirés pour la partie en cours
+  currentIndex: 0,
+  currentCharacter: null,
+  rounds: {},              // playerId -> progression individuelle sur le mot courant
+  roundStartTime: null,
+  roundTimer: null,
+  betweenRoundsTimer: null,
+  gameSettings: {
+    wordCount: 10,
+    difficulty: 'progressive', // progressive | facile | difficile | aleatoire
+    timePerWord: 0,            // 0 = pas de limite
+    pointsByClue: [...QUATRE_IMAGES_DEFAULT_POINTS]
+  }
+};
+
+// Historique des personnages déjà tirés (anti-répétition entre les parties)
+const quatreImagesHistory = [];
+
+// ==================== FONCTIONS 4 IMAGES 1 MOT ====================
+// Normalisation des réponses : casse, accents, ponctuation et espaces ignorés
+function normalizeAnswer(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/œ/g, 'oe')
+    .replace(/æ/g, 'ae')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function isCorrectAnswer(character, guess) {
+  const normalized = normalizeAnswer(guess);
+  if (!normalized) return false;
+  return character.answers.some(answer => normalizeAnswer(answer) === normalized)
+    || normalizeAnswer(character.name) === normalized;
+}
+
+// Tirage des personnages avec courbe de difficulté
+function pickQuatreImagesCharacters(count, difficulty) {
+  const byTier = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+  onePieceCharacters.forEach(character => {
+    if (byTier[character.difficulty]) byTier[character.difficulty].push(character);
+  });
+
+  // Priorité aux personnages non utilisés récemment
+  const drawFromTier = (tier, n) => {
+    if (n <= 0) return [];
+    const all = byTier[tier] || [];
+    const fresh = shuffleArray(all.filter(c => !quatreImagesHistory.includes(c.id)));
+    const used = shuffleArray(all.filter(c => quatreImagesHistory.includes(c.id)));
+    return [...fresh, ...used].slice(0, n);
+  };
+
+  let selection = [];
+
+  if (difficulty === 'aleatoire') {
+    selection = shuffleArray(onePieceCharacters).slice(0, count);
+  } else {
+    // Ordre des paliers parcourus selon la difficulté choisie
+    let tierOrder;
+    let easyStart = 0;
+    if (difficulty === 'facile') {
+      tierOrder = [1, 2, 3];
+    } else if (difficulty === 'difficile') {
+      tierOrder = [3, 4, 5, 2];
+    } else {
+      // progressive (défaut) : les 5 premiers mots sont des personnages ultra connus
+      tierOrder = [2, 3, 4, 5];
+      easyStart = Math.min(5, count);
+      selection = drawFromTier(1, easyStart);
+    }
+
+    let remaining = count - selection.length;
+    const quotas = {};
+    tierOrder.forEach(tier => { quotas[tier] = 0; });
+    for (let i = 0; i < remaining; i++) {
+      quotas[tierOrder[i % tierOrder.length]]++;
+    }
+
+    tierOrder.forEach(tier => {
+      selection = selection.concat(drawFromTier(tier, quotas[tier]));
+    });
+
+    // Complément si un palier était trop pauvre : on pioche dans tout le reste,
+    // du plus facile au plus difficile pour garder la courbe.
+    if (selection.length < count) {
+      const chosenIds = selection.map(c => c.id);
+      const leftovers = onePieceCharacters
+        .filter(c => !chosenIds.includes(c.id))
+        .sort((a, b) => a.difficulty - b.difficulty);
+      selection = selection.concat(leftovers.slice(0, count - selection.length));
+    }
+
+    // Courbe croissante garantie, sauf pour les 5 premiers déjà fixés
+    const head = selection.slice(0, easyStart);
+    const tail = selection.slice(easyStart).sort((a, b) => a.difficulty - b.difficulty);
+    selection = [...head, ...tail];
+  }
+
+  // Mise à jour de l'historique (on le purge quand il couvre 60% du catalogue)
+  selection.forEach(c => {
+    if (!quatreImagesHistory.includes(c.id)) quatreImagesHistory.push(c.id);
+  });
+  if (quatreImagesHistory.length >= Math.floor(onePieceCharacters.length * 0.6)) {
+    quatreImagesHistory.splice(0, quatreImagesHistory.length - selection.length);
+    console.log('[4Images] Historique des personnages réinitialisé');
+  }
+
+  return selection;
+}
+
+function createQuatreImagesRound() {
+  return {
+    cluesRevealed: 1,  // le premier indice est toujours visible
+    found: false,
+    failed: false,     // a déjà donné une mauvaise réponse -> ne marque plus de points
+    passed: false,
+    timedOut: false,
+    points: 0,
+    attempts: 0
+  };
+}
+
+// Un joueur ne bloque plus la partie dès qu'il a trouvé, s'est trompé,
+// a passé son tour ou a été rattrapé par le chrono.
+function isQuatreImagesRoundDone(round) {
+  return !!round && (round.found || round.failed || round.passed || round.timedOut);
+}
+
+function quatreImagesRoundStatus(round) {
+  if (!round) return 'spectateur';
+  if (round.found) return 'trouve';
+  if (round.failed) return 'rate';
+  if (round.passed) return 'passe';
+  if (round.timedOut) return 'temps-ecoule';
+  return 'en-cours';
+}
+
+function clearQuatreImagesTimers() {
+  if (quatreImagesState.roundTimer) {
+    clearTimeout(quatreImagesState.roundTimer);
+    quatreImagesState.roundTimer = null;
+  }
+  if (quatreImagesState.betweenRoundsTimer) {
+    clearTimeout(quatreImagesState.betweenRoundsTimer);
+    quatreImagesState.betweenRoundsTimer = null;
+  }
+}
+
+function resetQuatreImages() {
+  clearQuatreImagesTimers();
+  quatreImagesState.isGameActive = false;
+  quatreImagesState.characters = [];
+  quatreImagesState.currentIndex = 0;
+  quatreImagesState.currentCharacter = null;
+  quatreImagesState.rounds = {};
+  quatreImagesState.roundStartTime = null;
+}
+
+function broadcastQuatreImagesProgress() {
+  const statuses = {};
+  let doneCount = 0;
+
+  Object.keys(quatreImagesState.players).forEach(playerId => {
+    const round = quatreImagesState.rounds[playerId];
+    const done = isQuatreImagesRoundDone(round);
+    if (done) doneCount++;
+
+    statuses[playerId] = {
+      name: quatreImagesState.players[playerId].name,
+      cluesRevealed: round ? round.cluesRevealed : 0,
+      status: quatreImagesRoundStatus(round),
+      done
+    };
+  });
+
+  io.to('quatre-images').emit('quatre-images-progress', {
+    statuses,
+    doneCount,
+    playerCount: Object.keys(quatreImagesState.players).length
+  });
+}
+
+function startQuatreImagesRound() {
+  clearQuatreImagesTimers();
+
+  if (quatreImagesState.currentIndex >= quatreImagesState.characters.length) {
+    endQuatreImagesGame();
+    return;
+  }
+
+  const character = quatreImagesState.characters[quatreImagesState.currentIndex];
+  quatreImagesState.currentCharacter = character;
+  quatreImagesState.roundStartTime = Date.now();
+  quatreImagesState.rounds = {};
+
+  Object.keys(quatreImagesState.players).forEach(playerId => {
+    quatreImagesState.rounds[playerId] = createQuatreImagesRound();
+  });
+
+  io.to('quatre-images').emit('quatre-images-new-word', {
+    wordNumber: quatreImagesState.currentIndex + 1,
+    totalWords: quatreImagesState.characters.length,
+    cluesTotal: character.clues.length,
+    firstClue: character.clues[0],
+    difficulty: character.difficulty,
+    pointsByClue: quatreImagesState.gameSettings.pointsByClue,
+    timeLimit: quatreImagesState.gameSettings.timePerWord
+  });
+
+  broadcastQuatreImagesProgress();
+
+  if (quatreImagesState.gameSettings.timePerWord > 0) {
+    quatreImagesState.roundTimer = setTimeout(() => {
+      endQuatreImagesRound('temps-ecoule');
+    }, quatreImagesState.gameSettings.timePerWord * 1000);
+  }
+}
+
+function checkQuatreImagesRoundEnd() {
+  if (!quatreImagesState.isGameActive || !quatreImagesState.currentCharacter) return;
+
+  const playerIds = Object.keys(quatreImagesState.players);
+  if (playerIds.length === 0) return;
+
+  const allDone = playerIds.every(id => isQuatreImagesRoundDone(quatreImagesState.rounds[id]));
+  if (allDone) {
+    endQuatreImagesRound('tous-ont-repondu');
+  }
+}
+
+function endQuatreImagesRound(reason) {
+  const character = quatreImagesState.currentCharacter;
+  if (!character) return; // manche déjà clôturée
+
+  clearQuatreImagesTimers();
+  quatreImagesState.currentCharacter = null;
+
+  const results = {};
+  Object.keys(quatreImagesState.players).forEach(playerId => {
+    const round = quatreImagesState.rounds[playerId];
+    if (round && !isQuatreImagesRoundDone(round)) {
+      round.timedOut = true;
+    }
+    results[playerId] = {
+      playerName: quatreImagesState.players[playerId].name,
+      status: quatreImagesRoundStatus(round),
+      cluesUsed: round ? round.cluesRevealed : 0,
+      points: round ? round.points : 0
+    };
+  });
+
+  io.to('quatre-images').emit('quatre-images-word-results', {
+    reason,
+    wordNumber: quatreImagesState.currentIndex + 1,
+    totalWords: quatreImagesState.characters.length,
+    character: {
+      name: character.name,
+      difficulty: character.difficulty,
+      clues: character.clues,
+      trivia: character.trivia
+    },
+    results,
+    scores: quatreImagesState.scores,
+    nextIn: Math.round(QUATRE_IMAGES_REVEAL_DELAY / 1000)
+  });
+
+  quatreImagesState.currentIndex++;
+
+  quatreImagesState.betweenRoundsTimer = setTimeout(() => {
+    if (quatreImagesState.isGameActive) startQuatreImagesRound();
+  }, QUATRE_IMAGES_REVEAL_DELAY);
+}
+
+function endQuatreImagesGame() {
+  clearQuatreImagesTimers();
+  quatreImagesState.isGameActive = false;
+  quatreImagesState.currentCharacter = null;
+
+  const ranking = Object.keys(quatreImagesState.players)
+    .map(playerId => ({
+      playerId,
+      playerName: quatreImagesState.players[playerId].name,
+      score: quatreImagesState.scores[playerId] || 0
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  io.to('quatre-images').emit('quatre-images-ended', {
+    ranking,
+    totalWords: quatreImagesState.characters.length
+  });
+}
+
+// Validation / normalisation des paramètres envoyés par l'hôte
+function sanitizeQuatreImagesSettings(settings) {
+  const current = quatreImagesState.gameSettings;
+  const clean = {
+    wordCount: current.wordCount,
+    difficulty: current.difficulty,
+    timePerWord: current.timePerWord,
+    pointsByClue: [...current.pointsByClue]
+  };
+
+  const wordCount = parseInt(settings && settings.wordCount, 10);
+  if (!isNaN(wordCount)) {
+    clean.wordCount = Math.max(3, Math.min(onePieceCharacters.length, wordCount));
+  }
+
+  const allowed = ['progressive', 'facile', 'difficile', 'aleatoire'];
+  if (settings && allowed.includes(settings.difficulty)) {
+    clean.difficulty = settings.difficulty;
+  }
+
+  const timePerWord = parseInt(settings && settings.timePerWord, 10);
+  if (!isNaN(timePerWord)) {
+    clean.timePerWord = timePerWord <= 0 ? 0 : Math.max(10, Math.min(300, timePerWord));
+  }
+
+  // Barème : tableau [4,3,2,1] ou chaîne "4,3,2,1"
+  let points = settings && settings.pointsByClue;
+  if (typeof points === 'string') points = points.split(',');
+  if (Array.isArray(points)) {
+    const parsed = points
+      .map(value => parseInt(value, 10))
+      .filter(value => !isNaN(value) && value >= 0 && value <= 50);
+    if (parsed.length === 4) clean.pointsByClue = parsed;
+  }
+
+  return clean;
+}
+
 // ==================== SOCKET.IO ====================
 io.on('connection', (socket) => {
   console.log('Nouvel utilisateur connecté:', socket.id);
@@ -3447,9 +3790,240 @@ io.on('connection', (socket) => {
   });
 
   // ========== ÉVÉNEMENTS COMMUNS ==========
+  // ========== ÉVÉNEMENTS 4 IMAGES 1 MOT ==========
+  socket.on('join-quatre-images', (playerName) => {
+    socket.join('quatre-images');
+
+    quatreImagesState.players[socket.id] = {
+      name: playerName || `Joueur ${Object.keys(quatreImagesState.players).length + 1}`,
+      id: socket.id
+    };
+
+    if (quatreImagesState.scores[socket.id] === undefined) {
+      quatreImagesState.scores[socket.id] = 0;
+    }
+
+    if (!quatreImagesState.hostId) {
+      quatreImagesState.hostId = socket.id;
+      socket.emit('quatre-images-host-status', true);
+    }
+
+    // Joueur arrivé en cours de manche : spectateur jusqu'au mot suivant
+    if (quatreImagesState.isGameActive && quatreImagesState.currentCharacter) {
+      const spectatorRound = createQuatreImagesRound();
+      spectatorRound.passed = true;
+      quatreImagesState.rounds[socket.id] = spectatorRound;
+    }
+
+    socket.emit('quatre-images-game-state', {
+      isGameActive: quatreImagesState.isGameActive,
+      players: quatreImagesState.players,
+      scores: quatreImagesState.scores,
+      gameSettings: quatreImagesState.gameSettings,
+      wordNumber: quatreImagesState.currentIndex + 1,
+      totalWords: quatreImagesState.characters.length,
+      isSpectator: quatreImagesState.isGameActive && !!quatreImagesState.currentCharacter,
+      characterCount: onePieceCharacters.length
+    });
+
+    io.to('quatre-images').emit('quatre-images-player-joined', {
+      player: quatreImagesState.players[socket.id],
+      players: quatreImagesState.players,
+      scores: quatreImagesState.scores
+    });
+
+    if (quatreImagesState.isGameActive) broadcastQuatreImagesProgress();
+  });
+
+  socket.on('start-quatre-images', (settings) => {
+    if (socket.id !== quatreImagesState.hostId) {
+      socket.emit('error', 'Seul l\'hôte peut démarrer une partie');
+      return;
+    }
+
+    if (Object.keys(quatreImagesState.players).length === 0) {
+      socket.emit('error', 'Il faut au moins 1 joueur pour commencer');
+      return;
+    }
+
+    resetQuatreImages();
+    quatreImagesState.gameSettings = sanitizeQuatreImagesSettings(settings);
+
+    quatreImagesState.characters = pickQuatreImagesCharacters(
+      quatreImagesState.gameSettings.wordCount,
+      quatreImagesState.gameSettings.difficulty
+    );
+
+    if (quatreImagesState.characters.length === 0) {
+      socket.emit('error', 'Aucun personnage disponible pour ces paramètres');
+      return;
+    }
+
+    Object.keys(quatreImagesState.players).forEach(playerId => {
+      quatreImagesState.scores[playerId] = 0;
+    });
+
+    quatreImagesState.isGameActive = true;
+    quatreImagesState.currentIndex = 0;
+
+    io.to('quatre-images').emit('quatre-images-game-started', {
+      message: `Partie lancée ! ${quatreImagesState.characters.length} personnages à deviner.`,
+      settings: quatreImagesState.gameSettings,
+      totalWords: quatreImagesState.characters.length
+    });
+
+    setTimeout(() => {
+      if (quatreImagesState.isGameActive) startQuatreImagesRound();
+    }, 3000);
+  });
+
+  // Chaque joueur révèle ses indices quand il le souhaite, de son côté
+  socket.on('quatre-images-reveal-clue', () => {
+    const character = quatreImagesState.currentCharacter;
+    const round = quatreImagesState.rounds[socket.id];
+
+    if (!quatreImagesState.isGameActive || !character || !round) {
+      socket.emit('error', 'Aucun mot en cours');
+      return;
+    }
+
+    if (round.found || round.passed || round.timedOut) {
+      socket.emit('error', 'Ce mot est terminé pour vous');
+      return;
+    }
+
+    if (round.cluesRevealed >= character.clues.length) {
+      socket.emit('error', 'Tous les indices sont déjà révélés');
+      return;
+    }
+
+    round.cluesRevealed++;
+
+    socket.emit('quatre-images-clue-revealed', {
+      clueIndex: round.cluesRevealed - 1,
+      clue: character.clues[round.cluesRevealed - 1],
+      cluesRevealed: round.cluesRevealed,
+      cluesTotal: character.clues.length,
+      potentialPoints: round.failed
+        ? 0
+        : (quatreImagesState.gameSettings.pointsByClue[round.cluesRevealed - 1] || 0)
+    });
+
+    broadcastQuatreImagesProgress();
+  });
+
+  socket.on('quatre-images-guess', (guess) => {
+    const character = quatreImagesState.currentCharacter;
+    const round = quatreImagesState.rounds[socket.id];
+
+    if (!quatreImagesState.isGameActive || !character || !round) {
+      socket.emit('error', 'Aucun mot en cours');
+      return;
+    }
+
+    if (round.found || round.passed || round.timedOut) {
+      socket.emit('error', 'Ce mot est terminé pour vous');
+      return;
+    }
+
+    if (typeof guess !== 'string' || !guess.trim()) {
+      socket.emit('error', 'Réponse vide');
+      return;
+    }
+
+    round.attempts++;
+    const correct = isCorrectAnswer(character, guess);
+
+    if (correct) {
+      round.found = true;
+      // Une seule tentative valable : plus aucun point si le joueur s'est déjà trompé
+      round.points = round.failed
+        ? 0
+        : (quatreImagesState.gameSettings.pointsByClue[round.cluesRevealed - 1] || 0);
+      quatreImagesState.scores[socket.id] =
+        (quatreImagesState.scores[socket.id] || 0) + round.points;
+
+      socket.emit('quatre-images-guess-result', {
+        correct: true,
+        points: round.points,
+        cluesUsed: round.cluesRevealed,
+        characterName: character.name,
+        alreadyFailed: round.failed,
+        totalScore: quatreImagesState.scores[socket.id]
+      });
+    } else if (!round.failed) {
+      // Première erreur : le joueur ne peut plus marquer sur ce mot,
+      // il ne bloque plus les autres, mais il peut continuer à chercher.
+      round.failed = true;
+      round.points = 0;
+
+      socket.emit('quatre-images-guess-result', {
+        correct: false,
+        firstMistake: true,
+        points: 0,
+        guess: guess.trim(),
+        totalScore: quatreImagesState.scores[socket.id] || 0
+      });
+    } else {
+      // Tentatives suivantes : juste pour l'honneur
+      socket.emit('quatre-images-guess-result', {
+        correct: false,
+        firstMistake: false,
+        points: 0,
+        guess: guess.trim(),
+        totalScore: quatreImagesState.scores[socket.id] || 0
+      });
+      return;
+    }
+
+    broadcastQuatreImagesProgress();
+    checkQuatreImagesRoundEnd();
+  });
+
+  socket.on('quatre-images-pass', () => {
+    const round = quatreImagesState.rounds[socket.id];
+
+    if (!quatreImagesState.isGameActive || !quatreImagesState.currentCharacter || !round) {
+      socket.emit('error', 'Aucun mot en cours');
+      return;
+    }
+
+    if (round.found || round.passed || round.timedOut) return;
+
+    round.passed = true;
+
+    socket.emit('quatre-images-passed', {
+      cluesUsed: round.cluesRevealed,
+      points: 0
+    });
+
+    broadcastQuatreImagesProgress();
+    checkQuatreImagesRoundEnd();
+  });
+
+  socket.on('quatre-images-new-game', () => {
+    if (socket.id !== quatreImagesState.hostId) {
+      socket.emit('error', 'Seul l\'hôte peut démarrer une nouvelle partie');
+      return;
+    }
+
+    resetQuatreImages();
+    Object.keys(quatreImagesState.players).forEach(playerId => {
+      quatreImagesState.scores[playerId] = 0;
+    });
+
+    io.to('quatre-images').emit('quatre-images-ready-for-new-game', {
+      players: quatreImagesState.players,
+      scores: quatreImagesState.scores
+    });
+  });
+
   socket.on('chat-message', (data) => {
     const { message, game } = data;
-    const gameState = game === 'quiz' ? quizState : game === 'le10000' ? le10000State : mastermindState;
+    const gameState = game === 'quiz' ? quizState
+      : game === 'le10000' ? le10000State
+      : game === 'quatre-images' ? quatreImagesState
+      : mastermindState;
     const player = gameState.players[socket.id];
     
     if (player && message.trim()) {
@@ -3564,6 +4138,36 @@ io.on('connection', (socket) => {
       });
     }
 
+    // Nettoyer 4 Images 1 Mot
+    if (quatreImagesState.players[socket.id]) {
+      delete quatreImagesState.players[socket.id];
+      delete quatreImagesState.scores[socket.id];
+      delete quatreImagesState.rounds[socket.id];
+
+      if (quatreImagesState.hostId === socket.id) {
+        const remainingPlayers = Object.keys(quatreImagesState.players);
+        if (remainingPlayers.length > 0) {
+          quatreImagesState.hostId = remainingPlayers[0];
+          io.to(quatreImagesState.hostId).emit('quatre-images-host-status', true);
+        } else {
+          quatreImagesState.hostId = null;
+          resetQuatreImages();
+        }
+      }
+
+      io.to('quatre-images').emit('quatre-images-player-left', {
+        playerId: socket.id,
+        players: quatreImagesState.players,
+        scores: quatreImagesState.scores
+      });
+
+      // Le départ d'un joueur peut débloquer la manche en cours
+      if (quatreImagesState.isGameActive) {
+        broadcastQuatreImagesProgress();
+        checkQuatreImagesRoundEnd();
+      }
+    }
+
     // Nettoyer Loup-Garou
     if (loupGarouState.players[socket.id]) {
       const player = loupGarouState.players[socket.id];
@@ -3638,9 +4242,14 @@ app.get('/loup-garou', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'loup-garou.html'));
 });
 
+app.get('/quatre-images', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'quatre-images.html'));
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Serveur en cours d'exécution sur le port ${PORT}`);
   console.log(`Quiz: ${quizQuestions.length} questions chargées`);
   console.log(`Le 10000: Jeu de dés multijoueur activé`);
+  console.log(`4 Images 1 Mot: ${onePieceCharacters.length} personnages One Piece chargés`);
 });

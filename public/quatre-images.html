@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4 Images 1 Mot - Édition One Piece</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #00c6ff 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #d32f2f 0%, #f57c00 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .back-button {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .back-button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            min-height: 600px;
+        }
+
+        .game-area {
+            padding: 20px;
+        }
+
+        .sidebar {
+            background: #f8f9fa;
+            border-left: 1px solid #e9ecef;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hidden { display: none !important; }
+
+        .join-section, .host-controls {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .join-section h2, .host-controls h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #f57c00;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #d32f2f 0%, #f57c00 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+
+        .btn:hover:not(:disabled) { transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+        .btn-secondary { background: #6c757d; }
+
+        .settings-group { margin-bottom: 15px; }
+
+        .settings-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .settings-hint {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-top: -4px;
+            margin-bottom: 8px;
+        }
+
+        /* ---------- Zone de jeu ---------- */
+        .word-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .word-progress { font-weight: bold; color: #495057; }
+
+        .progress-bar {
+            flex: 1;
+            min-width: 120px;
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #d32f2f 0%, #f57c00 100%);
+            width: 0;
+            transition: width 0.4s ease;
+        }
+
+        .timer {
+            background: #343a40;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .timer.warning { background: #d32f2f; }
+
+        .points-banner {
+            background: #fff3cd;
+            border: 1px solid #ffe08a;
+            color: #7a5b00;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .clues-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .clue-card {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            border: 3px solid #90caf9;
+            border-radius: 12px;
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .clue-card.locked {
+            background: #f1f3f5;
+            border-color: #dee2e6;
+            border-style: dashed;
+            color: #adb5bd;
+        }
+
+        .clue-number {
+            font-size: 0.8em;
+            font-weight: bold;
+            color: #1565c0;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .clue-card.locked .clue-number { color: #adb5bd; }
+
+        .clue-emoji {
+            font-size: 2.8em;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+
+        .clue-image {
+            max-width: 100%;
+            max-height: 140px;
+            border-radius: 8px;
+        }
+
+        .clue-text {
+            margin-top: 10px;
+            font-size: 0.95em;
+            color: #0d47a1;
+            font-style: italic;
+        }
+
+        .clue-lock-icon { font-size: 2.2em; }
+
+        .answer-zone {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .answer-zone input { flex: 1; min-width: 200px; margin-bottom: 0; }
+
+        .action-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .waiting-box {
+            background: #e9f5ff;
+            border: 2px dashed #4facfe;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .waiting-box h3 { color: #1565c0; margin-bottom: 8px; }
+
+        .dots::after {
+            content: '';
+            animation: dots 1.4s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0% { content: ''; }
+            25% { content: '.'; }
+            50% { content: '..'; }
+            75% { content: '...'; }
+        }
+
+        .results-box {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .reveal-name {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #d32f2f;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .reveal-trivia {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+
+        .result-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .result-line:last-child { border-bottom: none; }
+
+        .badge {
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            color: white;
+        }
+
+        .badge.trouve { background: #28a745; }
+        .badge.rate { background: #dc3545; }
+        .badge.passe { background: #6c757d; }
+        .badge.temps-ecoule { background: #fd7e14; }
+        .badge.en-cours { background: #17a2b8; }
+        .badge.spectateur { background: #adb5bd; }
+
+        .status-message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .status-message.success { background: #d4edda; color: #155724; }
+        .status-message.error { background: #f8d7da; color: #721c24; }
+        .status-message.info { background: #d1ecf1; color: #0c5460; }
+
+        /* ---------- Sidebar ---------- */
+        .players-section { padding: 15px; }
+        .players-section h3 { margin-bottom: 10px; color: #333; font-size: 1.1em; }
+
+        .player {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 0.9em;
+        }
+
+        .player.me { border-left: 4px solid #f57c00; }
+
+        .score-display {
+            background: linear-gradient(135deg, #d32f2f 0%, #f57c00 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            margin: 12px 0;
+        }
+
+        .score-number { font-size: 2em; font-weight: bold; }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            margin-bottom: 4px;
+            font-size: 0.9em;
+        }
+
+        .chat-section {
+            border-top: 1px solid #e9ecef;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .chat-messages {
+            flex: 1;
+            min-height: 120px;
+            max-height: 220px;
+            overflow-y: auto;
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-size: 0.85em;
+        }
+
+        .chat-message { margin-bottom: 6px; }
+        .chat-message strong { color: #d32f2f; }
+
+        .chat-input { display: flex; gap: 6px; }
+        .chat-input input { margin-bottom: 0; padding: 8px; font-size: 14px; }
+        .chat-input .btn { padding: 8px 12px; font-size: 14px; }
+
+        .podium {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        .podium-place {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px 20px;
+            text-align: center;
+            min-width: 110px;
+        }
+
+        @media (max-width: 900px) {
+            .main-content { grid-template-columns: 1fr; }
+            .sidebar { border-left: none; border-top: 1px solid #e9ecef; }
+        }
+
+        @media (max-width: 520px) {
+            body { padding: 8px; }
+            .clues-grid { grid-template-columns: 1fr; }
+            .clue-emoji { font-size: 2.2em; }
+            .header { padding-top: 55px; }
+            .header h1 { font-size: 1.5em; }
+            .back-button { top: 12px; left: 12px; transform: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-button">← Accueil</a>
+            <h1>🏴‍☠️ 4 Images 1 Mot — One Piece</h1>
+            <p>Devinez le personnage avec le moins d'indices possible !</p>
+        </div>
+
+        <div class="main-content">
+            <div class="game-area">
+                <div id="status-message"></div>
+
+                <!-- Connexion -->
+                <div id="join-section" class="join-section">
+                    <h2>Rejoindre la partie</h2>
+                    <input type="text" id="player-name" placeholder="Votre nom" maxlength="20">
+                    <button class="btn btn-success" onclick="joinGame()">Rejoindre</button>
+                </div>
+
+                <!-- Paramètres de l'hôte -->
+                <div id="host-controls" class="host-controls hidden">
+                    <h3>🏠 Paramètres de la partie</h3>
+
+                    <div class="settings-group">
+                        <label for="word-count">Nombre de personnages :</label>
+                        <select id="word-count">
+                            <option value="5">5 (rapide)</option>
+                            <option value="10" selected>10 (normal)</option>
+                            <option value="15">15 (long)</option>
+                            <option value="20">20 (marathon)</option>
+                            <option value="30">30 (intégrale)</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-group">
+                        <label for="difficulty">Difficulté :</label>
+                        <select id="difficulty">
+                            <option value="progressive" selected>Progressive (5 faciles puis ça monte)</option>
+                            <option value="facile">Facile (personnages très connus)</option>
+                            <option value="difficile">Difficile (personnages secondaires)</option>
+                            <option value="aleatoire">Aléatoire</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-group">
+                        <label for="time-per-word">Temps limite par personnage :</label>
+                        <select id="time-per-word">
+                            <option value="0" selected>Illimité</option>
+                            <option value="30">30 secondes</option>
+                            <option value="45">45 secondes</option>
+                            <option value="60">60 secondes</option>
+                            <option value="90">90 secondes</option>
+                            <option value="120">2 minutes</option>
+                        </select>
+                    </div>
+
+                    <div class="settings-group">
+                        <label for="points-scale">Barème (points selon le nombre d'indices utilisés) :</label>
+                        <input type="text" id="points-scale" value="4,3,2,1" maxlength="15">
+                        <div class="settings-hint">
+                            4 valeurs séparées par des virgules : points avec 1, 2, 3 puis 4 indices révélés.
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success" onclick="startGame()">Démarrer la partie</button>
+                </div>
+
+                <!-- Salle d'attente -->
+                <div id="lobby-message" class="waiting-box hidden">
+                    <h3>⏳ En attente de l'hôte</h3>
+                    <p>La partie démarrera quand l'hôte lancera le jeu.</p>
+                </div>
+
+                <!-- Jeu -->
+                <div id="game-section" class="hidden">
+                    <div class="word-header">
+                        <span id="word-progress" class="word-progress">Personnage 1/10</span>
+                        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+                        <div id="timer" class="timer hidden">--</div>
+                    </div>
+
+                    <div id="points-banner" class="points-banner"></div>
+
+                    <div id="clues-grid" class="clues-grid"></div>
+
+                    <div id="play-zone">
+                        <div class="answer-zone">
+                            <input type="text" id="guess-input" placeholder="Quel personnage se cache derrière ces indices ?" maxlength="40">
+                            <button class="btn btn-success" id="guess-btn" onclick="submitGuess()">Valider</button>
+                        </div>
+                        <div class="action-row">
+                            <button class="btn" id="reveal-btn" onclick="revealClue()">🔍 Indice suivant</button>
+                            <button class="btn btn-secondary" id="pass-btn" onclick="passWord()">⏭️ Passer</button>
+                        </div>
+                    </div>
+
+                    <div id="waiting-others" class="waiting-box hidden">
+                        <h3>⌛ En attente des autres joueurs<span class="dots"></span></h3>
+                        <p id="waiting-detail">0/0 joueur a terminé ce personnage.</p>
+                    </div>
+
+                    <div id="round-results" class="results-box hidden"></div>
+                </div>
+
+                <!-- Résultats finaux -->
+                <div id="final-results" class="hidden">
+                    <h2 style="text-align:center;">🏆 Partie terminée !</h2>
+                    <div id="podium" class="podium"></div>
+                    <div id="final-ranking"></div>
+                    <div style="text-align:center; margin-top:20px;">
+                        <button class="btn btn-success hidden" id="new-game-btn" onclick="newGame()">Nouvelle partie</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="players-section">
+                    <h3>👥 Joueurs</h3>
+                    <div id="players-list"></div>
+
+                    <div class="score-display">
+                        <div>Votre score</div>
+                        <div id="my-score" class="score-number">0</div>
+                    </div>
+
+                    <h3>🏆 Classement</h3>
+                    <div id="ranking-list"></div>
+                </div>
+
+                <div class="chat-section">
+                    <h3>💬 Chat</h3>
+                    <div id="chat-messages" class="chat-messages"></div>
+                    <div class="chat-input">
+                        <input type="text" id="chat-input" placeholder="Message..." maxlength="200">
+                        <button class="btn" onclick="sendMessage()">➤</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let isHost = false;
+        let gameActive = false;
+        let myState = null;          // progression sur le mot en cours
+        let currentWord = null;      // { cluesTotal, pointsByClue, ... }
+        let revealedClues = [];      // indices révélés côté client
+        let timerInterval = null;
+        let playersCache = {};
+        let scoresCache = {};
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('player-name').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') joinGame();
+            });
+            document.getElementById('guess-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') submitGuess();
+            });
+            document.getElementById('chat-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') sendMessage();
+            });
+        });
+
+        function joinGame() {
+            const playerName = document.getElementById('player-name').value.trim();
+            if (!playerName) {
+                showStatus('Veuillez entrer votre nom', 'error');
+                return;
+            }
+
+            socket = io();
+            socket.emit('join-quatre-images', playerName);
+
+            socket.on('quatre-images-host-status', function(hostStatus) {
+                isHost = hostStatus;
+                if (isHost && !gameActive) {
+                    document.getElementById('host-controls').classList.remove('hidden');
+                    document.getElementById('lobby-message').classList.add('hidden');
+                    showStatus('Vous êtes l\'hôte de la partie', 'success');
+                }
+                document.getElementById('new-game-btn').classList.toggle('hidden', !isHost);
+            });
+
+            socket.on('quatre-images-game-state', function(state) {
+                gameActive = state.isGameActive;
+                playersCache = state.players;
+                scoresCache = state.scores || {};
+                updatePlayersList();
+                updateScores();
+
+                if (!isHost && !gameActive) {
+                    document.getElementById('lobby-message').classList.remove('hidden');
+                }
+                if (gameActive && state.isSpectator) {
+                    document.getElementById('game-section').classList.remove('hidden');
+                    document.getElementById('play-zone').classList.add('hidden');
+                    showStatus('Partie en cours : vous entrez dans le jeu au personnage suivant', 'info');
+                }
+            });
+
+            socket.on('quatre-images-player-joined', function(data) {
+                playersCache = data.players;
+                scoresCache = data.scores || scoresCache;
+                updatePlayersList();
+                updateScores();
+                showStatus(data.player.name + ' a rejoint la partie', 'info');
+            });
+
+            socket.on('quatre-images-player-left', function(data) {
+                playersCache = data.players;
+                scoresCache = data.scores || scoresCache;
+                updatePlayersList();
+                updateScores();
+            });
+
+            socket.on('quatre-images-game-started', function(data) {
+                gameActive = true;
+                currentWord = null;
+                document.getElementById('host-controls').classList.add('hidden');
+                document.getElementById('lobby-message').classList.add('hidden');
+                document.getElementById('final-results').classList.add('hidden');
+                showStatus(data.message, 'success');
+            });
+
+            socket.on('quatre-images-new-word', function(data) { showNewWord(data); });
+            socket.on('quatre-images-clue-revealed', function(data) { showClue(data); });
+            socket.on('quatre-images-guess-result', function(data) { handleGuessResult(data); });
+
+            socket.on('quatre-images-passed', function() {
+                myState = myState || {};
+                myState.done = true;
+                showStatus('Personnage passé — en attente des autres joueurs', 'info');
+                lockPlayZone();
+            });
+
+            socket.on('quatre-images-progress', function(data) { updateProgress(data); });
+            socket.on('quatre-images-word-results', function(data) { showWordResults(data); });
+            socket.on('quatre-images-ended', function(data) { showFinalResults(data); });
+
+            socket.on('quatre-images-ready-for-new-game', function(data) {
+                gameActive = false;
+                playersCache = data.players;
+                scoresCache = data.scores;
+                updatePlayersList();
+                updateScores();
+                document.getElementById('final-results').classList.add('hidden');
+                document.getElementById('game-section').classList.add('hidden');
+                if (isHost) {
+                    document.getElementById('host-controls').classList.remove('hidden');
+                } else {
+                    document.getElementById('lobby-message').classList.remove('hidden');
+                }
+            });
+
+            socket.on('chat-message', function(data) {
+                if (data.game && data.game !== 'quatre-images') return;
+                addChatMessage(data);
+            });
+
+            socket.on('error', function(message) { showStatus(message, 'error'); });
+
+            document.getElementById('join-section').classList.add('hidden');
+        }
+
+        function startGame() {
+            if (!isHost) return;
+            const settings = {
+                wordCount: parseInt(document.getElementById('word-count').value, 10),
+                difficulty: document.getElementById('difficulty').value,
+                timePerWord: parseInt(document.getElementById('time-per-word').value, 10),
+                pointsByClue: document.getElementById('points-scale').value
+            };
+            socket.emit('start-quatre-images', settings);
+        }
+
+        function newGame() {
+            if (!isHost) return;
+            socket.emit('quatre-images-new-game');
+        }
+
+        // ---------- Déroulé d'un personnage ----------
+        function showNewWord(data) {
+            currentWord = data;
+            myState = { cluesRevealed: 1, done: false, failed: false, found: false };
+            revealedClues = [data.firstClue];
+
+            document.getElementById('game-section').classList.remove('hidden');
+            document.getElementById('final-results').classList.add('hidden');
+            document.getElementById('round-results').classList.add('hidden');
+            document.getElementById('waiting-others').classList.add('hidden');
+            document.getElementById('play-zone').classList.remove('hidden');
+
+            document.getElementById('word-progress').textContent =
+                'Personnage ' + data.wordNumber + '/' + data.totalWords;
+            document.getElementById('progress-fill').style.width =
+                (data.wordNumber / data.totalWords * 100) + '%';
+
+            const input = document.getElementById('guess-input');
+            input.value = '';
+            input.disabled = false;
+            document.getElementById('guess-btn').disabled = false;
+            document.getElementById('pass-btn').disabled = false;
+            document.getElementById('reveal-btn').disabled = false;
+
+            renderClues();
+            updatePointsBanner();
+            startTimer(data.timeLimit);
+            input.focus();
+        }
+
+        function renderClues() {
+            const grid = document.getElementById('clues-grid');
+            grid.innerHTML = '';
+            const total = currentWord ? currentWord.cluesTotal : 4;
+
+            for (let i = 0; i < total; i++) {
+                const card = document.createElement('div');
+                const clue = revealedClues[i];
+
+                if (clue) {
+                    card.className = 'clue-card';
+                    let inner = '<div class="clue-number">Indice ' + (i + 1) + '</div>';
+                    if (clue.image) {
+                        inner += '<img class="clue-image" src="' + clue.image + '" alt="Indice ' + (i + 1) + '">';
+                    } else {
+                        inner += '<div class="clue-emoji">' + (clue.emoji || '❔') + '</div>';
+                    }
+                    if (clue.text) {
+                        inner += '<div class="clue-text">' + clue.text + '</div>';
+                    }
+                    card.innerHTML = inner;
+                } else {
+                    card.className = 'clue-card locked';
+                    const points = getPointsFor(i + 1);
+                    card.innerHTML =
+                        '<div class="clue-number">Indice ' + (i + 1) + '</div>' +
+                        '<div class="clue-lock-icon">🔒</div>' +
+                        '<div class="clue-text">' + points + ' pt' + (points > 1 ? 's' : '') + ' si trouvé ici</div>';
+                }
+                grid.appendChild(card);
+            }
+        }
+
+        function getPointsFor(clueCount) {
+            const scale = (currentWord && currentWord.pointsByClue) || [4, 3, 2, 1];
+            return scale[clueCount - 1] || 0;
+        }
+
+        function updatePointsBanner() {
+            const banner = document.getElementById('points-banner');
+            if (!myState) {
+                banner.textContent = '';
+                banner.classList.add('hidden');
+                return;
+            }
+            banner.classList.remove('hidden');
+
+            if (myState.failed) {
+                banner.textContent = '❌ Mauvaise réponse : vous ne marquerez plus de point sur ce personnage.';
+            } else {
+                banner.textContent = '🎯 Réponse correcte maintenant = ' + getPointsFor(myState.cluesRevealed) +
+                    ' point(s) — ' + myState.cluesRevealed + ' indice(s) utilisé(s)';
+            }
+        }
+
+        function revealClue() {
+            if (!gameActive || !myState || myState.found || myState.done) return;
+            socket.emit('quatre-images-reveal-clue');
+        }
+
+        function showClue(data) {
+            revealedClues[data.clueIndex] = data.clue;
+            myState.cluesRevealed = data.cluesRevealed;
+            renderClues();
+            updatePointsBanner();
+            if (data.cluesRevealed >= data.cluesTotal) {
+                document.getElementById('reveal-btn').disabled = true;
+            }
+        }
+
+        function submitGuess() {
+            const input = document.getElementById('guess-input');
+            const guess = input.value.trim();
+            if (!guess || !gameActive || !myState || myState.found) return;
+            socket.emit('quatre-images-guess', guess);
+            input.value = '';
+        }
+
+        function handleGuessResult(data) {
+            if (data.correct) {
+                myState.found = true;
+                myState.done = true;
+                if (data.points > 0) {
+                    showStatus('✅ Bravo ! ' + data.characterName + ' — +' + data.points +
+                        ' point(s) avec ' + data.cluesUsed + ' indice(s)', 'success');
+                } else {
+                    showStatus('✅ Bonne réponse (' + data.characterName +
+                        ') mais votre tentative était déjà perdue : 0 point.', 'info');
+                }
+                scoresCache[socket.id] = data.totalScore;
+                updateScores();
+                lockPlayZone();
+            } else if (data.firstMistake) {
+                myState.failed = true;
+                myState.done = true;
+                showStatus('❌ « ' + data.guess +' » : mauvaise réponse. Vous ne marquerez plus de point ' +
+                    'sur ce personnage, mais vous pouvez continuer à chercher.', 'error');
+                updatePointsBanner();
+            } else {
+                showStatus('❌ « ' + data.guess + ' » : toujours pas.', 'error');
+            }
+        }
+
+        function passWord() {
+            if (!gameActive || !myState || myState.found) return;
+            socket.emit('quatre-images-pass');
+        }
+
+        function lockPlayZone() {
+            document.getElementById('guess-input').disabled = true;
+            document.getElementById('guess-btn').disabled = true;
+            document.getElementById('reveal-btn').disabled = true;
+            document.getElementById('pass-btn').disabled = true;
+        }
+
+        function updateProgress(data) {
+            const list = document.getElementById('players-list');
+            list.innerHTML = '';
+
+            Object.keys(data.statuses).forEach(function(playerId) {
+                const info = data.statuses[playerId];
+                const div = document.createElement('div');
+                div.className = 'player' + (playerId === socket.id ? ' me' : '');
+                div.innerHTML =
+                    '<span><strong>' + info.name + '</strong>' + (playerId === socket.id ? ' (vous)' : '') + '</span>' +
+                    '<span><span class="badge ' + info.status + '">' + statusLabel(info.status) + '</span> ' +
+                    '<small>' + info.cluesRevealed + '/' +
+                    (currentWord ? currentWord.cluesTotal : 4) + '</small></span>';
+                list.appendChild(div);
+            });
+
+            const me = data.statuses[socket.id];
+            const waiting = document.getElementById('waiting-others');
+
+            if (me && me.done && data.doneCount < data.playerCount) {
+                waiting.classList.remove('hidden');
+                document.getElementById('waiting-detail').textContent =
+                    data.doneCount + '/' + data.playerCount + ' joueur(s) ont terminé ce personnage.';
+            } else {
+                waiting.classList.add('hidden');
+            }
+        }
+
+        function statusLabel(status) {
+            switch (status) {
+                case 'trouve': return 'Trouvé';
+                case 'rate': return 'Raté';
+                case 'passe': return 'Passé';
+                case 'temps-ecoule': return 'Temps écoulé';
+                case 'spectateur': return 'Spectateur';
+                default: return 'Cherche';
+            }
+        }
+
+        function showWordResults(data) {
+            stopTimer();
+            document.getElementById('play-zone').classList.add('hidden');
+            document.getElementById('waiting-others').classList.add('hidden');
+
+            revealedClues = data.character.clues;
+            currentWord = currentWord || { cluesTotal: data.character.clues.length };
+            currentWord.cluesTotal = data.character.clues.length;
+            renderClues();
+            const banner = document.getElementById('points-banner');
+            banner.textContent = '';
+            banner.classList.add('hidden');
+
+            let html = '<div class="reveal-name">👉 ' + data.character.name + '</div>';
+            if (data.character.trivia) {
+                html += '<div class="reveal-trivia">' + data.character.trivia + '</div>';
+            }
+
+            const entries = Object.keys(data.results).map(function(id) {
+                return { id: id, r: data.results[id] };
+            }).sort(function(a, b) { return b.r.points - a.r.points; });
+
+            entries.forEach(function(entry) {
+                html += '<div class="result-line">' +
+                    '<span>' + entry.r.playerName + (entry.id === socket.id ? ' (vous)' : '') + '</span>' +
+                    '<span><span class="badge ' + entry.r.status + '">' + statusLabel(entry.r.status) + '</span> ' +
+                    '<strong>+' + entry.r.points + '</strong> (' + entry.r.cluesUsed + ' indice(s))</span>' +
+                    '</div>';
+            });
+
+            html += '<p style="text-align:center; margin-top:15px; color:#6c757d;">Personnage suivant dans ' +
+                data.nextIn + ' secondes...</p>';
+
+            const box = document.getElementById('round-results');
+            box.innerHTML = html;
+            box.classList.remove('hidden');
+
+            scoresCache = data.scores;
+            updateScores();
+        }
+
+        function showFinalResults(data) {
+            gameActive = false;
+            stopTimer();
+            document.getElementById('game-section').classList.add('hidden');
+            document.getElementById('final-results').classList.remove('hidden');
+            document.getElementById('new-game-btn').classList.toggle('hidden', !isHost);
+
+            const medals = ['🥇', '🥈', '🥉'];
+            const podium = document.getElementById('podium');
+            podium.innerHTML = '';
+            data.ranking.slice(0, 3).forEach(function(player, index) {
+                const div = document.createElement('div');
+                div.className = 'podium-place';
+                div.innerHTML = '<div style="font-size:2em;">' + medals[index] + '</div>' +
+                    '<div style="font-weight:bold;">' + player.playerName + '</div>' +
+                    '<div>' + player.score + ' pts</div>';
+                podium.appendChild(div);
+            });
+
+            const ranking = document.getElementById('final-ranking');
+            ranking.innerHTML = '';
+            data.ranking.forEach(function(player, index) {
+                const div = document.createElement('div');
+                div.className = 'leaderboard-item';
+                div.innerHTML = '<span>#' + (index + 1) + ' ' + player.playerName + '</span>' +
+                    '<strong>' + player.score + ' pts</strong>';
+                ranking.appendChild(div);
+            });
+        }
+
+        // ---------- Timer ----------
+        function startTimer(seconds) {
+            stopTimer();
+            const timerDiv = document.getElementById('timer');
+            if (!seconds || seconds <= 0) {
+                timerDiv.classList.add('hidden');
+                return;
+            }
+
+            timerDiv.classList.remove('hidden');
+            let timeLeft = seconds;
+            timerDiv.textContent = timeLeft + 's';
+
+            timerInterval = setInterval(function() {
+                timeLeft--;
+                timerDiv.textContent = Math.max(0, timeLeft) + 's';
+                timerDiv.classList.toggle('warning', timeLeft <= 10);
+                if (timeLeft <= 0) stopTimer();
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        // ---------- Sidebar / chat ----------
+        function updatePlayersList() {
+            const list = document.getElementById('players-list');
+            list.innerHTML = '';
+            Object.values(playersCache).forEach(function(player) {
+                const div = document.createElement('div');
+                div.className = 'player' + (player.id === socket.id ? ' me' : '');
+                div.innerHTML = '<span><strong>' + player.name + '</strong>' +
+                    (player.id === socket.id ? ' (vous)' : '') + '</span>' +
+                    '<span>' + (scoresCache[player.id] || 0) + ' pts</span>';
+                list.appendChild(div);
+            });
+        }
+
+        function updateScores() {
+            document.getElementById('my-score').textContent = scoresCache[socket.id] || 0;
+
+            const ranking = Object.keys(playersCache)
+                .map(function(id) {
+                    return { name: playersCache[id].name, score: scoresCache[id] || 0 };
+                })
+                .sort(function(a, b) { return b.score - a.score; });
+
+            const list = document.getElementById('ranking-list');
+            list.innerHTML = '';
+            ranking.forEach(function(player, index) {
+                const div = document.createElement('div');
+                div.className = 'leaderboard-item';
+                div.innerHTML = '<span>#' + (index + 1) + ' ' + player.name + '</span>' +
+                    '<strong>' + player.score + '</strong>';
+                list.appendChild(div);
+            });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message || !socket) return;
+            socket.emit('chat-message', { message: message, game: 'quatre-images' });
+            input.value = '';
+        }
+
+        function addChatMessage(data) {
+            const box = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = 'chat-message';
+            div.innerHTML = '<strong>' + data.playerName + '</strong> : ' + data.message;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function showStatus(message, type) {
+            const box = document.getElementById('status-message');
+            box.className = 'status-message ' + type;
+            box.textContent = message;
+            clearTimeout(box._timeout);
+            box._timeout = setTimeout(function() {
+                box.className = '';
+                box.textContent = '';
+            }, 6000);
+        }
+    </script>
+</body>
+</html>
