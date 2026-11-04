@@ -1005,8 +1005,14 @@
             'temps-indice': 'temps écoulé pendant l\'indice',
             'temps-devinette': 'temps écoulé pendant la devinette',
             'temps': 'temps écoulé',
-            'capitaine-absent': 'capitaine absent'
+            'capitaine-absent': 'capitaine absent',
+            'face-terminee': 'plus d\'agent à trouver sur cette face'
         };
+
+        function sideName(side) {
+            const m = app.room && app.room.members.find(function(p) { return p.kind === 'joueur' && p.side === side; });
+            return (m ? m.name : 'Joueur') + ' (' + side + ')';
+        }
 
         function renderHistory(history, mode) {
             const panel = clear($('history-panel'));
@@ -1018,16 +1024,16 @@
                 const cls = mode === 'duo' ? 'duo' : (h.team || '');
                 let text;
                 if (h.type === 'indice') {
-                    const who = mode === 'duo' ? h.giverName : 'Équipe ' + TEAM_LABEL[h.team];
+                    const who = mode === 'duo' ? sideName(h.side) : 'Équipe ' + TEAM_LABEL[h.team];
                     text = '🎩 ' + who + ' : « ' + h.word + ' » ' + h.count;
                     list.appendChild(el('div', { class: 'history-item clue ' + cls, text: text }));
                     return;
                 }
                 if (h.type === 'carte') {
-                    const who = mode === 'duo' ? h.guesserName : TEAM_LABEL[h.team];
+                    const who = mode === 'duo' ? sideName(h.guesser) : TEAM_LABEL[h.team];
                     text = '   ' + who + ' révèle ' + h.word.toUpperCase() + ' → ' + (ICON[h.color] || '') + ' ' + (h.color === 'assassin' ? 'ASSASSIN' : (mode === 'duo' && h.color === 'neutre' ? 'passant' : 'carte ' + COLOR_LABEL[h.color]));
                 } else if (h.type === 'fin-tour') {
-                    text = '   ↳ ' + (mode === 'duo' ? '' : TEAM_LABEL[h.team] + ' : ') + (END_TURN_TEXT[h.reason] || h.reason);
+                    text = '   ↳ ' + (mode === 'duo' ? '' : TEAM_LABEL[h.team] + ' : ') + (mode === 'duo' && h.reason === 'neutre' ? 'passant, fin du tour' : (END_TURN_TEXT[h.reason] || h.reason)) + (mode === 'duo' ? ' (−1 jeton ⏳)' : '');
                 } else if (h.type === 'promotion') {
                     text = '🎩 ' + h.name + ' devient capitaine (' + TEAM_LABEL[h.team] + ')';
                 } else if (h.type === 'info') {
@@ -1038,6 +1044,110 @@
                 list.appendChild(el('div', { class: 'history-item ' + cls, text: text }));
             });
             panel.appendChild(list);
+        }
+
+        // ---------- Duo ----------
+        const DUO_END_TEXT = {
+            agents: 'Les 15 agents ont été retrouvés. Bravo !',
+            assassin: 'Un assassin a été touché ☠.',
+            temps: 'Les jetons de temps sont épuisés.',
+            'mort-subite': 'Erreur pendant la mort subite.',
+            abandon: 'Partie interrompue.'
+        };
+
+        function renderDuo(view) {
+            const g = view.game;
+            const mine = me();
+            const mySide = g.mySide;
+            const ended = g.phase === 'fin';
+            const suddenDeath = g.phase === 'mort-subite';
+            const iGive = mySide && g.giver === mySide && !suddenDeath;
+            const iGuess = mySide && g.giver !== mySide && !suddenDeath;
+            g.endText = DUO_END_TEXT[g.endReason] || '';
+
+            // Bandeau d'état
+            const status = clear($('game-status'));
+            const tokens = el('span', { 'aria-label': g.tokensLeft + ' jetons sur ' + g.tokensTotal });
+            for (let i = 0; i < g.tokensTotal; i++) tokens.appendChild(el('span', { style: 'opacity:' + (i < g.tokensLeft ? '1' : '0.2'), text: '⏳' }));
+            status.appendChild(statusBox('Jetons de temps (' + g.tokensLeft + '/' + g.tokensTotal + ')', [tokens], g.tokensLeft <= 2 && !ended ? 'turn-rouge' : ''));
+            status.appendChild(statusBox('Agents trouvés', ICON.agent + ' ' + g.agentsFound + ' / ' + g.agentsTotal + (mySide && !ended ? '  (' + g.myAgentsLeft + ' sur votre face)' : ''), 'turn-duo'));
+            let turnText;
+            if (ended) turnText = 'Partie terminée';
+            else if (suddenDeath) turnText = '☠ Mort subite : toute erreur est fatale';
+            else turnText = (g.phase === 'indice' ? sideName(g.giver) + ' cherche un indice' : sideName(g.giver === 'A' ? 'B' : 'A') + ' devine');
+            status.appendChild(statusBox('Tour ' + g.turnNumber, [turnText], ended ? '' : 'turn-duo'));
+            status.appendChild(statusBox('Votre rôle', !mySide ? '👁 Spectateur'
+                : suddenDeath ? 'Joueur ' + mySide + ' — désignez les agents de votre partenaire'
+                : iGive ? '🎩 Vous donnez l\'indice' : '🕵️ Vous devinez'));
+            status.appendChild(timerBox());
+
+            // Indice en cours
+            const banner = clear($('clue-banner'));
+            banner.className = 'hidden';
+            if (g.clue && !ended) {
+                banner.className = 'clue-banner duo';
+                banner.appendChild(document.createTextNode('Indice de ' + sideName(g.clue.giver) + ' : '));
+                banner.appendChild(el('span', { class: 'clue-word', text: g.clue.word }));
+                banner.appendChild(el('strong', { text: g.clue.display }));
+                banner.appendChild(el('div', { style: 'font-size:0.8em;opacity:0.9;margin-top:3px;', text: g.clue.guessesMade + ' proposition(s) — continuez tant que vous trouvez des agents' }));
+            } else if (suddenDeath) {
+                banner.className = 'clue-banner';
+                banner.appendChild(document.createTextNode('☠ MORT SUBITE — plus d\'indices. Désignez un agent de la face de votre partenaire.'));
+            }
+
+            // Actions
+            const bar = clear($('action-bar'));
+            if (!ended && iGive && g.phase === 'indice') {
+                bar.appendChild(ui.clueInput);
+                bar.appendChild(ui.clueCount);
+                bar.appendChild(el('button', { class: 'btn vert', onclick: submitClue, text: 'Donner l\'indice' }));
+            } else if (!ended && iGuess && g.phase === 'devinette') {
+                bar.appendChild(el('span', { style: 'font-weight:bold;', text: '👉 Cliquez sur une carte' }));
+                bar.appendChild(el('button', { class: 'btn clair', disabled: g.clue.guessesMade < 1, onclick: function() { emit('game:pass'); }, text: '⏭ Passer (−1 jeton)' }));
+            } else if (!ended && mySide && !suddenDeath) {
+                bar.appendChild(el('span', { style: 'color:#78909c;', text: iGive ? 'Votre partenaire devine…' : 'Votre partenaire cherche un indice…' }));
+            }
+
+            // Plateau
+            const giver = g.giver;
+            renderBoard(g.words, function(i) {
+                const marks = [];
+                if (g.bystanders.A[i]) marks.push('🚶A');
+                if (g.bystanders.B[i]) marks.push('🚶B');
+                const icon2 = marks.join(' ') || null;
+                if (ended && g.keys) {
+                    const a = g.keys.A[i];
+                    const b = g.keys.B[i];
+                    const label = 'A : ' + COLOR_LABEL[a] + ', B : ' + COLOR_LABEL[b];
+                    let cls = 'revealed ghost c-neutre';
+                    if (g.assassinIndex === i) cls = 'revealed c-assassin';
+                    else if (g.found[i]) cls = 'revealed c-agent';
+                    else if (a === 'agent' || b === 'agent') cls = 'revealed ghost c-agent';
+                    else if (a === 'assassin' || b === 'assassin') cls = 'revealed ghost c-assassin';
+                    return { cls: cls, icon: 'A' + ICON[a] + ' B' + ICON[b], label: label };
+                }
+                if (g.found[i]) return { cls: 'revealed c-agent', icon: ICON.agent, icon2: icon2, label: 'agent trouvé' };
+                const clickable = !!mySide && (suddenDeath || (iGuess && g.phase === 'devinette' && !g.bystanders[giver][i]));
+                const mineColor = g.myKey ? g.myKey[i] : null;
+                return {
+                    cls: mineColor ? 'hint-' + mineColor : '',
+                    icon: mineColor ? ICON[mineColor] : null,
+                    icon2: icon2,
+                    label: (mineColor ? 'votre face : ' + (mineColor === 'neutre' ? 'passant' : COLOR_LABEL[mineColor]) : '') + (marks.length ? ' — passant marqué ' + marks.join(', ') : ''),
+                    clickable: clickable
+                };
+            }, function(i) { return g.found[i]; });
+
+            // Légende
+            const legend = clear($('legend'));
+            [['agent', 'Agent (vert)', 'var(--vert)'], ['neutre', 'Passant', 'var(--neutre)'], ['assassin', 'Assassin', 'var(--assassin)']].forEach(function(item) {
+                legend.appendChild(el('span', null, [el('span', { class: 'swatch', style: 'background:' + item[2] }), ICON[item[0]] + ' ' + item[1]]));
+            });
+            legend.appendChild(el('span', { text: '🚶A / 🚶B : passant identifié sur la face de A / B' }));
+            if (mySide && !ended) legend.appendChild(el('span', { text: 'Les liserés montrent VOTRE face de la clé.' }));
+
+            renderEndBanner(view);
+            renderHistory(g.history, 'duo');
         }
 
         // ==================== Chat ====================

@@ -2,8 +2,9 @@
 
 const { CodenamesError } = require('./errors');
 const { defaultRng, shuffle } = require('./util');
-const { generateClassicKey, drawWords } = require('./board');
+const { generateClassicKey, generateDuoKeys, drawWords } = require('./board');
 const classic = require('./classic');
+const duo = require('./duo');
 const { TEAMS } = require('./rooms');
 const { TurnTimer } = require('./timer');
 
@@ -62,6 +63,7 @@ class MatchController {
     room.notice = null;
     room.chat.teams = { rouge: [], bleu: [], duo: [] }; // le chat d'équipe repart à zéro à chaque manche
     if (room.settings.mode === 'classique') this.startClassicRound(room);
+    else this.startDuoRound(room);
     room.status = 'en_cours';
     this.syncTimer(room);
     this.manager.touch(room);
@@ -83,6 +85,17 @@ class MatchController {
       words: this.wordsFor(room),
       key: generateClassicKey(startingTeam, this.rng),
       startingTeam
+    });
+  }
+
+  startDuoRound(room) {
+    const s = room.settings.duo;
+    room.game = duo.createDuoGame({
+      words: this.wordsFor(room),
+      keys: generateDuoKeys(this.rng),
+      tokens: s.timeTokens,
+      suddenDeath: s.suddenDeath,
+      firstGiver: this.rng() < 0.5 ? 'A' : 'B'
     });
   }
 
@@ -172,6 +185,7 @@ class MatchController {
     this.manager.requireHost(room, actorId);
     if (room.game && room.game.phase !== 'fin') {
       if (room.game.mode === 'classique') classic.abort(room.game);
+      else duo.abort(room.game);
     }
     this.timer.stop(room);
     room.game = null;
@@ -229,12 +243,64 @@ class MatchController {
     return this.duoView(room, member);
   }
 
-  // Implémentés par le mode Duo (étape 7).
-  duoClue() { throw new CodenamesError('Mode non disponible.'); }
-  duoGuess() { throw new CodenamesError('Mode non disponible.'); }
-  duoPass() { throw new CodenamesError('Mode non disponible.'); }
-  duoView() { return null; }
-  duoTimeout() {}
+  // ---------- Duo ----------
+
+  duoSide(member) {
+    if (member.kind !== 'joueur' || !member.side) throw new CodenamesError('Les spectateurs ne peuvent pas jouer.');
+    return member.side;
+  }
+
+  duoClue(room, member, word, count) {
+    duo.giveClue(room.game, this.duoSide(member), word, count);
+    this.afterAction(room);
+  }
+
+  duoGuess(room, member, index) {
+    duo.guess(room.game, this.duoSide(member), index);
+    this.afterAction(room);
+  }
+
+  duoPass(room, member) {
+    duo.pass(room.game, this.duoSide(member));
+    this.afterAction(room);
+  }
+
+  duoTimeout(room) {
+    duo.timeout(room.game);
+  }
+
+  /**
+   * Vue Duo : chaque joueur ne reçoit QUE sa face de la clé.
+   * Les spectateurs ne voient aucune face avant la fin de la partie.
+   */
+  duoView(room, member) {
+    const g = room.game;
+    const ended = g.phase === 'fin';
+    const side = member && member.kind === 'joueur' ? member.side : null;
+    return {
+      mode: 'duo',
+      words: g.words,
+      found: g.found.slice(),
+      bystanders: { A: g.bystanders.A.slice(), B: g.bystanders.B.slice() },
+      myKey: side && !ended ? g.keys[side].slice() : null,
+      keys: ended ? { A: g.keys.A.slice(), B: g.keys.B.slice() } : null,
+      mySide: side,
+      myAgentsLeft: side ? duo.agentsLeft(g, side) : null,
+      giver: g.giver,
+      phase: g.phase,
+      clue: g.clue ? { giver: g.clue.giver, word: g.clue.word, display: g.clue.display, guessesMade: g.clue.guessesMade } : null,
+      tokensLeft: g.tokensLeft,
+      tokensTotal: g.tokensTotal,
+      suddenDeathEnabled: g.suddenDeathEnabled,
+      agentsFound: duo.foundCount(g),
+      agentsTotal: g.agentsTotal,
+      history: g.history.slice(-200),
+      result: g.result,
+      endReason: g.endReason,
+      assassinIndex: ended ? g.assassinIndex : null,
+      turnNumber: g.turnNumber
+    };
+  }
 }
 
 /**
