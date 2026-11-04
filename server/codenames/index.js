@@ -5,6 +5,7 @@ const { buildRoomView, schemaForClient } = require('./views');
 const { randomId, cleanText } = require('./util');
 const { MatchController } = require('./match');
 const { ChatService } = require('./chat');
+const { DefinitionService } = require('./definitions');
 const { loadWordPacks } = require('./words');
 const { setAvailablePacks } = require('./settings');
 
@@ -51,6 +52,7 @@ function registerCodenames(io, options = {}) {
   hooks.onMemberReconnected.push((room, member) => match.onMemberReconnected(room, member));
   hooks.onMemberRemoved.push((room, member) => match.onMemberRemoved(room, member));
   const chat = new ChatService({ scheduler: manager.scheduler });
+  const definitions = options.definitions || new DefinitionService();
   const chatSignatures = new Map(); // playerId -> signature du flux d'équipe déjà envoyé
 
   // ---------- Émission ----------
@@ -144,10 +146,7 @@ function registerCodenames(io, options = {}) {
           reply({ ok: false, error: 'Trop d\'actions, ralentissez.' });
           return;
         }
-        try {
-          const result = handler(payload && typeof payload === 'object' ? payload : {});
-          reply({ ok: true, ...(result || {}) });
-        } catch (err) {
+        const fail = (err) => {
           if (err instanceof CodenamesError) {
             reply({ ok: false, error: err.message });
             socket.emit('cn:error', err.message);
@@ -155,6 +154,16 @@ function registerCodenames(io, options = {}) {
             console.error('[codenames]', event, err);
             reply({ ok: false, error: 'Erreur interne.' });
           }
+        };
+        try {
+          const result = handler(payload && typeof payload === 'object' ? payload : {});
+          if (result && typeof result.then === 'function') {
+            result.then((value) => reply({ ok: true, ...(value || {}) }), fail);
+          } else {
+            reply({ ok: true, ...(result || {}) });
+          }
+        } catch (err) {
+          fail(err);
         }
       });
     }
@@ -225,6 +234,16 @@ function registerCodenames(io, options = {}) {
       for (const m of recipients) emitTo(m.id, 'chat:message', message);
     });
 
+    // ---------- Définitions (fin de manche uniquement) ----------
+    on('definition:get', async (p) => {
+      const room = myRoom();
+      if (room.status !== 'terminee' || !room.game) throw new CodenamesError('Les définitions sont disponibles en fin de manche.');
+      const word = room.game.words[p.index];
+      if (typeof word !== 'string') throw new CodenamesError('Carte invalide.');
+      const definition = await definitions.lookup(word);
+      return { word, definition };
+    });
+
     // ---------- Partie ----------
     on('game:start', () => match.start(myRoom().id, playerId));
     on('game:clue', (p) => match.clue(myRoom().id, playerId, p.word, p.count));
@@ -260,7 +279,7 @@ function registerCodenames(io, options = {}) {
   }, SESSION_SWEEP_MS);
   if (sweep.unref) sweep.unref();
 
-  return { nsp, manager, match, chat, hooks, emitTo, viewFor, isOnline: (id) => socketsOf.has(id) };
+  return { nsp, manager, match, chat, definitions, hooks, emitTo, viewFor, isOnline: (id) => socketsOf.has(id) };
 }
 
 module.exports = { registerCodenames };

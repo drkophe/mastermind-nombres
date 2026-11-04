@@ -172,3 +172,34 @@ Votre jeu sera accessible via l'URL fournie par Render !
 ---
 
 **Prêt à créer votre jeu ? Suivez les étapes et vous aurez votre Mastermind en ligne en 10 minutes ! 🎉**
+
+---
+
+# 🕵️ Codenames (mode Classique et Duo)
+
+Jeu disponible sur `/codenames`. Code serveur isolé dans `server/codenames/` (namespace Socket.IO `/codenames`).
+
+| Fichier | Rôle |
+| --- | --- |
+| `server/codenames/index.js` | Branchement Socket.IO, sessions (jeton), émission des états personnalisés |
+| `rooms.js` | Salons : liste publique, hôte, équipes, spectateurs, nettoyage |
+| `match.js` | Manches, timer, pauses, promotions de capitaine |
+| `classic.js` / `duo.js` | Règles pures (testées) |
+| `clue.js` / `board.js` | Validation des indices, clés, tirage des mots |
+| `views.js` | **Seul** endroit qui décide ce que voit chaque client (la clé n'est jamais envoyée aux agents ni aux spectateurs) |
+| `chat.js` | Chat général / chat d'équipe filtré côté serveur, anti-flood |
+| `definitions.js` | Définitions de fin de manche (FreeDictionaryAPI.com, cache, 429) |
+| `settings.js` | Schéma déclaratif des paramètres (ajouter une option = une entrée) |
+
+## Commandes
+
+```bash
+npm install
+npm start              # serveur sur http://localhost:3000
+npm test               # tests unitaires et d'intégration (node:test)
+npm run lint           # ESLint sur le code Codenames
+npm run build-wordlist -- --input chemin/vers/Lexique383.tsv
+```
+
+La liste de mots et sa licence (Lexique 3.83, CC BY-SA 4.0) sont décrites dans
+`data/codenames/ATTRIBUTION.md`.

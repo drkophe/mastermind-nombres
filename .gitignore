@@ -1,3 +1,6 @@
 node_modules/
 npm-debug.log*
 .env
+
+# Données brutes Lexique (volumineuses, téléchargées localement pour build-wordlist)
+scripts/data/

@@ -182,7 +182,7 @@
         .status-box.turn-duo { border-color: var(--vert); background: #f4fbf4; color: var(--vert); }
         .status-box.timer.urgent { border-color: #e65100; color: #e65100; animation: pulse 1s infinite; }
         @keyframes pulse { 50% { opacity: 0.6; } }
-        .scoreline { display: flex; gap: 10px; font-size: 1.05em; }
+        .scoreline { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 1.05em; white-space: nowrap; }
         .scoreline .rouge { color: var(--rouge); }
         .scoreline .bleu { color: var(--bleu); }
 
@@ -266,6 +266,13 @@
         .end-banner.defaite { background: linear-gradient(135deg, #424242, #000); }
         .end-banner .buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
         .end-banner .btn { background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.4); }
+
+        .definition { margin-bottom: 12px; }
+        .def-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .def-head h2 { text-transform: capitalize; margin-bottom: 0; }
+        .def-list { margin: 10px 0 10px 22px; line-height: 1.5; }
+        .attribution { font-size: 0.8em; color: #607d8b; border-top: 1px solid #e0e0e0; padding-top: 6px; }
+        .attribution a, .definition a { color: #1565c0; }
 
         .game-columns { display: grid; grid-template-columns: 1fr; gap: 12px; }
 
@@ -771,7 +778,7 @@
 
         function buildGameSkeleton() {
             const game = clear($('game'));
-            ['game-status', 'game-notice', 'end-banner', 'clue-banner', 'action-bar', 'board', 'legend', 'history-panel'].forEach(function(id) {
+            ['game-status', 'game-notice', 'end-banner', 'clue-banner', 'action-bar', 'board', 'definition-panel', 'legend', 'history-panel'].forEach(function(id) {
                 game.appendChild(el('div', { id: id }));
             });
             $('board').className = 'board';
@@ -955,12 +962,19 @@
             const board = clear($('board'));
             const prev = ui.prevRevealed;
             const now = words.map(function(_, i) { return isRevealed(i); });
+            const definable = app.room && app.room.status === 'terminee';
+            if (!definable) $('definition-panel').className = 'hidden';
             words.forEach(function(word, i) {
                 const d = describe(i);
+                if (definable) {
+                    d.clickable = false;
+                    d.onclick = function() { showDefinition(i); };
+                    d.label = (d.label ? d.label + ' — ' : '') + 'cliquer pour la définition';
+                }
                 const fresh = prev && now[i] && !prev[i];
-                const card = el(d.clickable ? 'button' : 'div', {
-                    class: 'card ' + d.cls + (d.clickable ? ' clickable' : '') + (fresh ? ' just-revealed' : '') + (word.length > 9 ? ' long' : ''),
-                    role: d.clickable ? undefined : 'gridcell',
+                const card = el(d.clickable || d.onclick ? 'button' : 'div', {
+                    class: 'card ' + d.cls + (d.clickable || d.onclick ? ' clickable' : '') + (fresh ? ' just-revealed' : '') + (word.length > 9 ? ' long' : ''),
+                    role: d.clickable || d.onclick ? undefined : 'gridcell',
                     'aria-label': word + (d.label ? ' — ' + d.label : ''),
                     title: d.label || undefined,
                     onclick: d.clickable ? function() { onCardClick(i, word); } : (d.onclick || undefined)
@@ -972,6 +986,34 @@
                 board.appendChild(card);
             });
             ui.prevRevealed = now;
+        }
+
+        async function showDefinition(index) {
+            const panel = clear($('definition-panel'));
+            panel.className = 'panel definition';
+            panel.appendChild(el('div', { class: 'empty', text: 'Recherche de la définition…' }));
+            const res = await emit('definition:get', { index: index });
+            clear(panel);
+            const word = res.word || app.room.game.words[index];
+            panel.appendChild(el('div', { class: 'def-head' }, [
+                el('h2', { text: '📖 ' + word }),
+                el('button', { class: 'btn small clair', 'aria-label': 'Fermer', onclick: function() { panel.className = 'hidden'; }, text: '✕' })
+            ]));
+            const def = res.ok ? res.definition : null;
+            if (!def) {
+                panel.appendChild(el('div', { class: 'empty', text: 'Définition indisponible pour le moment.' }));
+                panel.appendChild(el('a', { href: 'https://fr.wiktionary.org/wiki/' + encodeURIComponent(word), target: '_blank', rel: 'noopener noreferrer', text: 'Chercher « ' + word + ' » sur le Wiktionnaire' }));
+                return;
+            }
+            const list = el('ol', { class: 'def-list' });
+            def.definitions.forEach(function(d) {
+                list.appendChild(el('li', null, [d.partOfSpeech ? el('em', { text: d.partOfSpeech + ' — ' }) : null, d.text]));
+            });
+            panel.appendChild(list);
+            panel.appendChild(el('div', { class: 'attribution' }, [
+                def.attribution + ' — ',
+                el('a', { href: def.sourceUrl, target: '_blank', rel: 'noopener noreferrer', text: 'voir la page Wiktionary' })
+            ]));
         }
 
         function onCardClick(index) {
@@ -1006,7 +1048,7 @@
             if (view.match.totalRounds > 1 && g.mode === 'classique') {
                 box.appendChild(el('div', { style: 'margin-top:6px;font-weight:bold;', text: 'Score : Rouge ' + view.match.score.rouge + ' – ' + view.match.score.bleu + ' Bleue' + (view.match.over ? ' (partie terminée)' : ' (manche ' + view.match.round + '/' + view.match.totalRounds + ')') }));
             }
-            box.appendChild(el('div', { style: 'margin-top:6px;font-size:0.85em;opacity:0.9;', text: 'Plateau complet révélé ci-dessous.' }));
+            box.appendChild(el('div', { style: 'margin-top:6px;font-size:0.85em;opacity:0.9;', text: 'Plateau complet révélé ci-dessous — cliquez sur un mot pour voir sa définition.' }));
             const buttons = el('div', { class: 'buttons' });
             if (isHost()) {
                 const nextLabel = view.match.over ? '🔁 Rejouer' : '▶ Manche suivante';

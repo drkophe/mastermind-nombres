@@ -13,10 +13,10 @@ const { registerCodenames } = require('../../server/codenames');
 
 const words = Array.from({ length: 200 }, (_, i) => `mot${i}x`);
 
-async function startServer() {
+async function startServer(options = {}) {
   const httpServer = http.createServer();
   const io = new Server(httpServer);
-  const codenames = registerCodenames(io, { packs: new Map([['classique', { id: 'classique', label: 'Test', words }]]) });
+  const codenames = registerCodenames(io, { packs: new Map([['classique', { id: 'classique', label: 'Test', words }]]), ...options });
   await new Promise((resolve) => httpServer.listen(0, resolve));
   const url = `http://localhost:${httpServer.address().port}/codenames`;
   return { io, httpServer, codenames, url };
@@ -127,4 +127,24 @@ test('intégration : reconnexion avec le même jeton, même place et même vue',
   assert.notEqual(intruder.session.playerId, playerId);
   assert.equal(intruder.state, null);
   assert.equal(r2.state.game.key, null);
+});
+
+test('intégration : définitions disponibles seulement en fin de manche', async (t) => {
+  const lookups = [];
+  const definitions = { lookup: async (w) => { lookups.push(w); return { word: w, definitions: [{ partOfSpeech: 'nom', text: 'déf' }] }; } };
+  const server = await startServer({ definitions });
+  t.after(() => { server.io.close(); server.httpServer.close(); });
+  const { r1, r2, all } = await setupGame(server.url);
+  t.after(() => all.forEach((c) => c.socket.close()));
+  const during = await r2.call('definition:get', { index: 0 });
+  assert.equal(during.ok, false);
+  assert.equal(lookups.length, 0, 'aucun appel externe pendant la manche');
+  const key = r1.state.game.key;
+  await r1.call('game:clue', { word: 'indice', count: 1 });
+  await r2.call('game:guess', { index: key.indexOf('assassin') });
+  const after = await r2.call('definition:get', { index: 3 });
+  assert.equal(after.ok, true);
+  assert.equal(after.word, r1.state.game.words[3]);
+  assert.equal(after.definition.definitions[0].text, 'déf');
+  assert.equal((await r2.call('definition:get', { index: 99 })).ok, false);
 });
