@@ -4,6 +4,7 @@ const { RoomManager, CodenamesError } = require('./rooms');
 const { buildRoomView, schemaForClient } = require('./views');
 const { randomId, cleanText } = require('./util');
 const { MatchController } = require('./match');
+const { ChatService } = require('./chat');
 const { loadWordPacks } = require('./words');
 const { setAvailablePacks } = require('./settings');
 
@@ -30,6 +31,7 @@ function registerCodenames(io, options = {}) {
     onListChange: () => { listDirty = true; scheduleFlush(); },
     onRoomDeleted: (room) => { dirtyRooms.delete(room.id); },
     onMemberRemoved: (room, member) => {
+      chatSignatures.delete(member.id);
       hooks.onMemberRemoved.forEach((fn) => fn(room, member));
       emitTo(member.id, 'room:left', { roomId: room.id });
     },
@@ -42,6 +44,8 @@ function registerCodenames(io, options = {}) {
   const match = new MatchController({ manager, packs, rng: options.rng });
   hooks.gameView = (room, member) => match.gameView(room, member);
   hooks.timerView = (room) => match.timer.view(room);
+  const chat = new ChatService({ scheduler: manager.scheduler });
+  const chatSignatures = new Map(); // playerId -> signature du flux d'équipe déjà envoyé
 
   // ---------- Émission ----------
 
@@ -71,6 +75,12 @@ function registerCodenames(io, options = {}) {
   function emitRoomState(room) {
     for (const member of room.members.values()) {
       emitTo(member.id, 'room:state', viewFor(room, member.id));
+      // Changement d'équipe ou de manche : le flux du chat d'équipe change aussi.
+      const signature = `${room.id}:${chat.channelSignature(room, member)}`;
+      if (chatSignatures.get(member.id) !== signature && socketsOf.has(member.id)) {
+        chatSignatures.set(member.id, signature);
+        emitTo(member.id, 'chat:history', chat.historyFor(room, member));
+      }
     }
   }
 
@@ -102,6 +112,7 @@ function registerCodenames(io, options = {}) {
       const member = current.members.get(playerId);
       manager.markConnected(current, member);
       socket.emit('room:state', viewFor(current, playerId));
+      socket.emit('chat:history', chat.historyFor(current, member));
     }
 
     const bucket = { count: 0, windowStart: Date.now() };
@@ -197,6 +208,13 @@ function registerCodenames(io, options = {}) {
       manager.changed(room, true);
     });
 
+    // ---------- Chat ----------
+    on('chat:send', (p) => {
+      const room = myRoom();
+      const { message, recipients } = chat.post(room, room.members.get(playerId), p.channel, p.text);
+      for (const m of recipients) emitTo(m.id, 'chat:message', message);
+    });
+
     // ---------- Partie ----------
     on('game:start', () => match.start(myRoom().id, playerId));
     on('game:clue', (p) => match.clue(myRoom().id, playerId, p.word, p.count));
@@ -219,7 +237,7 @@ function registerCodenames(io, options = {}) {
     });
   });
 
-  return { nsp, manager, match, hooks, emitTo, viewFor, isOnline: (id) => socketsOf.has(id) };
+  return { nsp, manager, match, chat, hooks, emitTo, viewFor, isOnline: (id) => socketsOf.has(id) };
 }
 
 module.exports = { registerCodenames };

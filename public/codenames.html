@@ -150,6 +150,26 @@
         .lobby-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 
         .sidebar-section { padding: 14px; border-bottom: 1px solid #e9ecef; }
+
+        /* ---------- Chat ---------- */
+        .chat-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+        .chat-tab { flex: 1; padding: 8px 6px; border: none; border-radius: 10px 10px 0 0; background: #e0e0e0; color: #455a64; font-weight: bold; cursor: pointer; font-size: 0.85em; position: relative; }
+        .chat-tab.active { background: white; color: #263238; box-shadow: 0 -2px 0 #546e7a inset; }
+        .chat-tab.equipe-rouge.active { box-shadow: 0 -3px 0 var(--rouge) inset; color: var(--rouge); }
+        .chat-tab.equipe-bleu.active { box-shadow: 0 -3px 0 var(--bleu) inset; color: var(--bleu); }
+        .chat-tab.equipe-duo.active { box-shadow: 0 -3px 0 var(--vert) inset; color: var(--vert); }
+        .unread { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #e53935; color: white; font-size: 0.75em; line-height: 18px; }
+        .chat-messages { flex: 1; overflow-y: auto; background: white; border-radius: 8px; padding: 8px; min-height: 200px; max-height: 420px; font-size: 0.9em; }
+        .chat-msg { margin-bottom: 6px; word-wrap: break-word; }
+        .chat-msg .author { font-weight: bold; }
+        .chat-msg .author.rouge { color: var(--rouge); }
+        .chat-msg .author.bleu { color: var(--bleu); }
+        .chat-msg .author.A, .chat-msg .author.B { color: var(--vert); }
+        .chat-msg .author.spectateur { color: #78909c; font-style: italic; }
+        .chat-msg .time { color: #b0bec5; font-size: 0.75em; margin-left: 4px; }
+        .chat-hint { font-size: 0.75em; color: #78909c; margin: 6px 0; }
+        .chat-input { display: flex; gap: 6px; margin-top: 8px; }
+        .chat-input input { flex: 1; min-width: 0; padding: 8px 10px; }
         .sidebar-section h3 { font-size: 0.95em; margin-bottom: 8px; color: #37474f; }
 
         /* ---------- Partie ---------- */
@@ -483,8 +503,12 @@
             });
 
             app.socket.on('room:left', function() {
+                resetChat();
                 exitRoom();
             });
+
+            app.socket.on('chat:history', onChatHistory);
+            app.socket.on('chat:message', onChatMessage);
 
             app.socket.on('disconnect', function() {
                 showStatus('Connexion perdue, reconnexion en cours…', 'error');
@@ -1014,6 +1038,100 @@
                 list.appendChild(el('div', { class: 'history-item ' + cls, text: text }));
             });
             panel.appendChild(list);
+        }
+
+        // ==================== Chat ====================
+        const chatState = { active: 'general', teamKey: null, messages: { general: [], equipe: [] }, unread: { general: 0, equipe: 0 }, built: false };
+
+        function buildChat() {
+            const area = clear($('chat-area'));
+            area.appendChild(el('h3', { text: '💬 Discussion' }));
+            area.appendChild(el('div', { class: 'chat-tabs', id: 'chat-tabs', role: 'tablist' }));
+            area.appendChild(el('div', { class: 'chat-hint', id: 'chat-hint' }));
+            area.appendChild(el('div', { class: 'chat-messages', id: 'chat-messages', role: 'log', 'aria-live': 'polite' }));
+            const input = el('input', { type: 'text', id: 'chat-input', maxlength: '300', placeholder: 'Votre message…', 'aria-label': 'Message' });
+            input.addEventListener('keypress', function(e) { if (e.key === 'Enter') sendChat(); });
+            area.appendChild(el('div', { class: 'chat-input' }, [input, el('button', { class: 'btn small', onclick: sendChat, text: 'Envoyer' })]));
+            chatState.built = true;
+        }
+
+        function teamChannelLabel() {
+            if (chatState.teamKey === 'duo') return '🤝 Duo (privé)';
+            if (chatState.teamKey) return '🛡 Équipe ' + TEAM_LABEL[chatState.teamKey];
+            return null;
+        }
+
+        function renderChatTabs() {
+            if (!chatState.built) buildChat();
+            if (!chatState.teamKey && chatState.active === 'equipe') chatState.active = 'general';
+            const tabs = clear($('chat-tabs'));
+            const defs = [['general', '🌍 Général', '']];
+            if (chatState.teamKey) defs.push(['equipe', teamChannelLabel(), 'equipe-' + chatState.teamKey]);
+            defs.forEach(function(d) {
+                const unread = chatState.unread[d[0]];
+                tabs.appendChild(el('button', {
+                    class: 'chat-tab ' + d[2] + (chatState.active === d[0] ? ' active' : ''),
+                    role: 'tab', 'aria-selected': chatState.active === d[0] ? 'true' : 'false',
+                    onclick: function() { chatState.active = d[0]; chatState.unread[d[0]] = 0; renderChatTabs(); renderChatMessages(); }
+                }, [d[1], unread ? el('span', { class: 'unread', 'aria-label': unread + ' non lus', text: String(unread) }) : null]));
+            });
+            $('chat-hint').textContent = chatState.active === 'equipe'
+                ? (chatState.teamKey === 'duo' ? 'Visible uniquement par vous deux.' : 'Visible uniquement par votre équipe (capitaine inclus).')
+                : 'Visible par tous, spectateurs compris.';
+        }
+
+        function formatTime(ts) {
+            const d = new Date(ts);
+            return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        }
+
+        function renderChatMessages() {
+            const box = clear($('chat-messages'));
+            const list = chatState.messages[chatState.active];
+            if (!list.length) box.appendChild(el('div', { class: 'empty', text: 'Aucun message.' }));
+            list.forEach(function(m) {
+                const badge = m.authorRole === 'capitaine' ? ' 🎩' : '';
+                box.appendChild(el('div', { class: 'chat-msg' }, [
+                    el('span', { class: 'author ' + (m.authorRole === 'spectateur' ? 'spectateur' : (m.authorTeam || '')), text: m.authorName + badge }),
+                    el('span', { class: 'time', text: formatTime(m.at) }),
+                    el('div', { text: m.text })
+                ]));
+            });
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function onChatHistory(data) {
+            chatState.teamKey = data.teamKey;
+            chatState.messages.general = data.general;
+            chatState.messages.equipe = data.equipe;
+            chatState.unread = { general: 0, equipe: 0 };
+            renderChatTabs();
+            renderChatMessages();
+        }
+
+        function onChatMessage(m) {
+            const channel = m.channel === 'equipe' ? 'equipe' : 'general';
+            chatState.messages[channel].push(m);
+            if (chatState.messages[channel].length > 200) chatState.messages[channel].shift();
+            if (channel !== chatState.active) chatState.unread[channel]++;
+            renderChatTabs();
+            if (channel === chatState.active) renderChatMessages();
+        }
+
+        async function sendChat() {
+            const input = $('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+            const res = await emit('chat:send', { channel: chatState.active, text: text });
+            if (res.ok) input.value = '';
+        }
+
+        function resetChat() {
+            chatState.teamKey = null;
+            chatState.active = 'general';
+            chatState.messages = { general: [], equipe: [] };
+            chatState.unread = { general: 0, equipe: 0 };
+            if (chatState.built) { renderChatTabs(); renderChatMessages(); }
         }
 
         // ==================== Initialisation ====================

@@ -21,7 +21,12 @@ const DEFAULT_TIMINGS = {
 };
 
 const realScheduler = {
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  // unref : ces minuteurs ne doivent pas, à eux seuls, garder le processus en vie.
+  setTimeout: (fn, ms) => {
+    const handle = setTimeout(fn, ms);
+    if (handle.unref) handle.unref();
+    return handle;
+  },
   clearTimeout: (handle) => clearTimeout(handle),
   now: () => Date.now()
 };
