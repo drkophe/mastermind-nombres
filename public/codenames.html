@@ -152,6 +152,103 @@
         .sidebar-section { padding: 14px; border-bottom: 1px solid #e9ecef; }
         .sidebar-section h3 { font-size: 0.95em; margin-bottom: 8px; color: #37474f; }
 
+        /* ---------- Partie ---------- */
+        .game-status { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; margin-bottom: 12px; }
+        .status-box { flex: 1 1 160px; border-radius: 12px; padding: 10px 12px; background: #f8f9fa; border: 2px solid #e9ecef; }
+        .status-box .label { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.05em; color: #78909c; font-weight: bold; }
+        .status-box .value { font-size: 1.15em; font-weight: bold; margin-top: 3px; }
+        .status-box.turn-rouge { border-color: var(--rouge); background: #fff5f5; color: var(--rouge); }
+        .status-box.turn-bleu { border-color: var(--bleu); background: #f3f8ff; color: var(--bleu); }
+        .status-box.turn-duo { border-color: var(--vert); background: #f4fbf4; color: var(--vert); }
+        .status-box.timer.urgent { border-color: #e65100; color: #e65100; animation: pulse 1s infinite; }
+        @keyframes pulse { 50% { opacity: 0.6; } }
+        .scoreline { display: flex; gap: 10px; font-size: 1.05em; }
+        .scoreline .rouge { color: var(--rouge); }
+        .scoreline .bleu { color: var(--bleu); }
+
+        .clue-banner { text-align: center; padding: 10px; border-radius: 12px; margin-bottom: 12px; font-size: 1.1em; background: #263238; color: white; }
+        .clue-banner .clue-word { font-size: 1.4em; font-weight: bold; letter-spacing: 0.04em; text-transform: uppercase; margin: 0 6px; }
+        .clue-banner.rouge { background: var(--rouge); }
+        .clue-banner.bleu { background: var(--bleu); }
+        .clue-banner.duo { background: var(--vert); }
+
+        .action-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; margin-bottom: 12px; }
+        .action-bar input[type=text] { flex: 1 1 180px; max-width: 280px; }
+
+        .board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+        .card {
+            position: relative;
+            aspect-ratio: 8 / 5;
+            border-radius: 10px;
+            border: 2px solid #c9bb95;
+            background: var(--carte);
+            box-shadow: 0 3px 0 #c9bb95;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            font-weight: bold;
+            font-size: clamp(0.62em, 1.6vw, 1.05em);
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            color: #3e2f13;
+            cursor: default;
+            user-select: none;
+            overflow: hidden;
+            transition: transform 0.12s ease;
+            font-family: inherit;
+        }
+        .card .word { position: relative; z-index: 1; text-align: center; hyphens: auto; overflow-wrap: break-word; line-height: 1.1; background: rgba(255,255,255,0.75); padding: 2px 5px; border-radius: 5px; }
+        .card .icon { position: absolute; top: 3px; right: 6px; font-size: 0.95em; z-index: 1; }
+        .card .icon2 { position: absolute; bottom: 3px; left: 6px; font-size: 0.85em; z-index: 1; }
+        .card.clickable { cursor: pointer; }
+        .card.clickable:hover { transform: translateY(-3px); border-color: #546e7a; }
+        .card.clickable:focus-visible { outline: 3px solid #ffb300; outline-offset: 2px; }
+
+        /* Vue capitaine : liseré + icône discrète */
+        .card.hint-rouge { border-color: var(--rouge); box-shadow: inset 0 0 0 4px var(--rouge-clair), 0 3px 0 var(--rouge); }
+        .card.hint-bleu { border-color: var(--bleu); box-shadow: inset 0 0 0 4px var(--bleu-clair), 0 3px 0 var(--bleu); }
+        .card.hint-neutre { border-color: var(--neutre-fonce); }
+        .card.hint-assassin { border-color: var(--assassin); box-shadow: inset 0 0 0 4px #9e9e9e, 0 3px 0 var(--assassin); }
+        .card.hint-agent { border-color: var(--vert); box-shadow: inset 0 0 0 4px var(--vert-clair), 0 3px 0 var(--vert); }
+
+        /* Cartes révélées : couleur pleine + motif (second signal pour les daltoniens) */
+        .card.revealed { color: white; box-shadow: none; }
+        .card.revealed .word { background: rgba(0,0,0,0.35); color: white; font-size: 0.85em; }
+        .card.c-rouge { background: var(--rouge) repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,255,255,0.18) 8px 12px); border-color: #8e0000; }
+        .card.c-bleu { background: var(--bleu) radial-gradient(rgba(255,255,255,0.25) 2px, transparent 2.5px) 0 0 / 12px 12px; border-color: #003c8f; }
+        .card.c-neutre { background: var(--neutre); border-color: var(--neutre-fonce); color: #3e2f13; }
+        .card.c-neutre .word { background: rgba(255,255,255,0.6); color: #3e2f13; }
+        .card.c-assassin { background: var(--assassin) repeating-linear-gradient(-45deg, transparent 0 6px, rgba(255,255,255,0.12) 6px 8px); border-color: black; }
+        .card.c-agent { background: var(--vert) repeating-linear-gradient(90deg, transparent 0 8px, rgba(255,255,255,0.15) 8px 11px); border-color: #1b5e20; }
+        /* Fin de manche : cartes non révélées affichées en transparence */
+        .card.ghost { opacity: 0.55; }
+        .card.ghost .word { text-decoration: none; }
+        .card.just-revealed { animation: flip 0.45s ease; }
+        @keyframes flip { 0% { transform: rotateY(90deg); } 100% { transform: rotateY(0); } }
+
+        .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8em; color: #546e7a; margin-bottom: 12px; justify-content: center; }
+        .legend span { display: inline-flex; align-items: center; gap: 4px; }
+        .swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,0.2); }
+
+        .history { max-height: 220px; overflow-y: auto; font-size: 0.88em; }
+        .history-item { padding: 4px 8px; border-left: 4px solid #cfd8dc; margin-bottom: 4px; background: white; border-radius: 0 6px 6px 0; }
+        .history-item.rouge { border-left-color: var(--rouge); }
+        .history-item.bleu { border-left-color: var(--bleu); }
+        .history-item.duo { border-left-color: var(--vert); }
+        .history-item.clue { font-weight: bold; }
+
+        .end-banner { text-align: center; padding: 16px; border-radius: 12px; margin-bottom: 12px; color: white; background: #37474f; }
+        .end-banner h3 { font-size: 1.5em; margin-bottom: 6px; }
+        .end-banner.rouge { background: linear-gradient(135deg, #e53935, #8e0000); }
+        .end-banner.bleu { background: linear-gradient(135deg, #1e88e5, #003c8f); }
+        .end-banner.victoire { background: linear-gradient(135deg, #43a047, #1b5e20); }
+        .end-banner.defaite { background: linear-gradient(135deg, #424242, #000); }
+        .end-banner .buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+        .end-banner .btn { background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.4); }
+
+        .game-columns { display: grid; grid-template-columns: 1fr; gap: 12px; }
+
         @media (max-width: 900px) {
             body { padding: 0; }
             .container { border-radius: 0; }
@@ -166,6 +263,13 @@
         }
         @media (max-width: 600px) {
             .lineup { grid-template-columns: 1fr; }
+            .board { gap: 4px; }
+            .card { border-radius: 6px; padding: 2px; font-size: 0.6em; aspect-ratio: 6 / 5; }
+            .card .word { padding: 1px 2px; letter-spacing: 0; }
+            .card.long { font-size: 0.5em; }
+            .card .icon { top: 1px; right: 2px; }
+            .card .icon2 { bottom: 1px; left: 2px; }
+            .status-box { flex-basis: 120px; padding: 6px 8px; }
         }
     </style>
 </head>
@@ -321,6 +425,7 @@
         };
 
         const TEAM_LABEL = { rouge: 'Rouge', bleu: 'Bleue' };
+        const TEAM_ADJ = { rouge: 'rouge', bleu: 'bleu' }; // accord masculin : « capitaine bleu »
         const MODE_LABEL = { classique: 'Classique', duo: 'Duo' };
         const ENUM_LABELS = {
             mode: { classique: 'Classique', duo: 'Duo' },
@@ -482,7 +587,7 @@
             app.room.members.forEach(function(m) {
                 let info = m.kind === 'spectateur' ? '👁 spectateur'
                     : app.room.settings.mode === 'duo' ? 'Joueur ' + (m.side || '?')
-                    : (m.role === 'capitaine' ? '🎩 capitaine ' : 'agent ') + (TEAM_LABEL[m.team] || '').toLowerCase();
+                    : (m.role === 'capitaine' ? '🎩 capitaine ' : 'agent ') + (TEAM_ADJ[m.team] || '');
                 list.appendChild(el('div', { class: 'member' + (m.connected ? '' : ' offline') }, [
                     el('span', { class: 'name', text: (m.connected ? '🟢 ' : '⚪ ') + memberLabel(m) + (m.id === app.playerId ? ' (vous)' : '') }),
                     el('span', { style: 'font-size:0.8em;color:#78909c;', text: info })
@@ -633,6 +738,255 @@
                     addField([key, subKey], sub[1], view.settings[key][subKey]);
                 });
             });
+        }
+
+        // ==================== Partie ====================
+        const ICON = { rouge: '▲', bleu: '■', neutre: '○', assassin: '☠', agent: '✔' };
+        const COLOR_LABEL = { rouge: 'rouge', bleu: 'bleue', neutre: 'neutre', assassin: 'l\'assassin', agent: 'agent' };
+        const ui = { built: false, prevRevealed: null, clueInput: null, clueCount: null, roundKey: null };
+
+        function buildGameSkeleton() {
+            const game = clear($('game'));
+            ['game-status', 'end-banner', 'clue-banner', 'action-bar', 'board', 'legend', 'history-panel'].forEach(function(id) {
+                game.appendChild(el('div', { id: id }));
+            });
+            $('board').className = 'board';
+            $('board').setAttribute('role', 'grid');
+            $('board').setAttribute('aria-label', 'Plateau de 25 mots');
+            $('game-status').className = 'game-status';
+            $('action-bar').className = 'action-bar';
+            $('legend').className = 'legend';
+            ui.clueInput = el('input', { type: 'text', maxlength: '30', placeholder: 'Votre indice (un seul mot)', 'aria-label': 'Indice' });
+            ui.clueCount = el('select', { 'aria-label': 'Nombre de mots' },
+                ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'illimite'].map(function(v) {
+                    return el('option', { value: v, selected: v === '1', text: v === 'illimite' ? '∞ (illimité)' : v });
+                }));
+            ui.clueInput.addEventListener('keypress', function(e) { if (e.key === 'Enter') submitClue(); });
+            ui.built = true;
+        }
+
+        async function submitClue() {
+            const word = ui.clueInput.value.trim();
+            if (!word) { showStatus('Écrivez un indice.', 'error'); return; }
+            const res = await emit('game:clue', { word: word, count: ui.clueCount.value });
+            if (res.ok) ui.clueInput.value = '';
+        }
+
+        function statusBox(label, value, cls) {
+            return el('div', { class: 'status-box ' + (cls || '') }, [
+                el('div', { class: 'label', text: label }),
+                el('div', { class: 'value' }, Array.isArray(value) ? value : [value])
+            ]);
+        }
+
+        function renderGame() {
+            const view = app.room;
+            if (!view.game) return;
+            if (!ui.built) buildGameSkeleton();
+            const roundKey = view.id + ':' + view.match.round + ':' + view.game.words.join(',');
+            if (ui.roundKey !== roundKey) { ui.roundKey = roundKey; ui.prevRevealed = null; }
+            if (view.game.mode === 'classique') renderClassic(view);
+            else if (typeof renderDuo === 'function') renderDuo(view);
+            renderTimer();
+        }
+
+        function timerBox() {
+            return el('div', { id: 'timer-box', class: 'status-box timer hidden' }, [
+                el('div', { class: 'label', text: '⏱ Temps' }),
+                el('div', { class: 'value', id: 'timer-value', text: '—' })
+            ]);
+        }
+
+        function renderTimer() { /* complété avec le timer (étape 5) */ }
+
+        // ---------- Classique ----------
+        function renderClassic(view) {
+            const g = view.game;
+            const mine = me();
+            const myTeam = mine && mine.kind === 'joueur' ? mine.team : null;
+            const isCaptain = myTeam && mine.role === 'capitaine';
+            const ended = g.phase === 'fin';
+            const myTurn = !ended && myTeam === g.currentTeam;
+
+            // Bandeau d'état
+            const status = clear($('game-status'));
+            const phaseText = ended ? 'Manche terminée'
+                : g.phase === 'indice' ? 'Le capitaine cherche un indice…' : 'Les agents devinent';
+            status.appendChild(statusBox('Tour', [(ended ? '' : ICON[g.currentTeam] + ' ') + (ended ? '—' : 'Équipe ' + TEAM_LABEL[g.currentTeam]), el('div', { style: 'font-size:0.7em;font-weight:normal;', text: phaseText })], ended ? '' : 'turn-' + g.currentTeam));
+            status.appendChild(statusBox('Cartes restantes', [el('span', { class: 'scoreline' }, [
+                el('span', { class: 'rouge', text: ICON.rouge + ' ' + g.remaining.rouge }),
+                el('span', { class: 'bleu', text: ICON.bleu + ' ' + g.remaining.bleu })
+            ])]));
+            if (view.match.totalRounds > 1) {
+                status.appendChild(statusBox('Manche ' + view.match.round + '/' + view.match.totalRounds, [el('span', { class: 'scoreline' }, [
+                    el('span', { class: 'rouge', text: 'Rouge ' + view.match.score.rouge }),
+                    el('span', { text: '–' }),
+                    el('span', { class: 'bleu', text: view.match.score.bleu + ' Bleue' })
+                ])]));
+            }
+            status.appendChild(statusBox('Votre rôle', !myTeam ? '👁 Spectateur'
+                : (isCaptain ? '🎩 Capitaine ' : '🕵️ Agent ') + TEAM_ADJ[myTeam], myTeam ? 'turn-' + myTeam : ''));
+            status.appendChild(timerBox());
+
+            // Indice en cours
+            const banner = clear($('clue-banner'));
+            banner.className = 'hidden';
+            if (g.clue && !ended) {
+                banner.className = 'clue-banner ' + g.clue.team;
+                const left = g.clue.guessesLeft === null ? 'essais illimités' : g.clue.guessesLeft + ' essai' + (g.clue.guessesLeft > 1 ? 's' : '') + ' restant' + (g.clue.guessesLeft > 1 ? 's' : '');
+                banner.appendChild(document.createTextNode('Indice : '));
+                banner.appendChild(el('span', { class: 'clue-word', text: g.clue.word }));
+                banner.appendChild(el('strong', { text: g.clue.display }));
+                banner.appendChild(el('div', { style: 'font-size:0.8em;opacity:0.9;margin-top:3px;', text: left }));
+            }
+
+            // Actions
+            const bar = clear($('action-bar'));
+            if (myTurn && isCaptain && g.phase === 'indice') {
+                bar.appendChild(ui.clueInput);
+                bar.appendChild(ui.clueCount);
+                bar.appendChild(el('button', { class: 'btn ' + myTeam, onclick: submitClue, text: 'Donner l\'indice' }));
+            } else if (myTurn && !isCaptain && g.phase === 'devinette') {
+                bar.appendChild(el('span', { style: 'font-weight:bold;', text: '👉 Cliquez sur une carte pour la révéler' }));
+                bar.appendChild(el('button', {
+                    class: 'btn clair', disabled: g.clue.guessesMade < 1,
+                    title: g.clue.guessesMade < 1 ? 'Faites au moins une proposition' : '',
+                    onclick: function() { emit('game:pass'); }, text: '⏭ Passer'
+                }));
+            } else if (!ended && myTeam) {
+                bar.appendChild(el('span', { style: 'color:#78909c;', text: myTurn ? (isCaptain ? 'Vos agents cherchent…' : 'Votre capitaine réfléchit…') : 'Au tour de l\'équipe adverse.' }));
+            }
+
+            // Plateau
+            const canGuess = myTurn && !isCaptain && g.phase === 'devinette';
+            renderBoard(g.words, function(i) {
+                const revealedColor = g.revealed[i];
+                const keyColor = g.key ? g.key[i] : null;
+                if (revealedColor) return { cls: 'revealed c-' + revealedColor, icon: ICON[revealedColor], label: COLOR_LABEL[revealedColor] };
+                if (ended && keyColor) return { cls: 'revealed ghost c-' + keyColor, icon: ICON[keyColor], label: COLOR_LABEL[keyColor] + ' (non révélée)' };
+                if (keyColor) return { cls: 'hint-' + keyColor, icon: ICON[keyColor], label: 'carte ' + COLOR_LABEL[keyColor] + ' (visible par le capitaine)', clickable: canGuess };
+                return { cls: '', clickable: canGuess };
+            }, function(i) { return g.revealed[i] !== null; });
+
+            // Légende
+            const legend = clear($('legend'));
+            [['rouge', 'Rouge', 'var(--rouge)'], ['bleu', 'Bleue', 'var(--bleu)'], ['neutre', 'Neutre', 'var(--neutre)'], ['assassin', 'Assassin', 'var(--assassin)']].forEach(function(item) {
+                legend.appendChild(el('span', null, [el('span', { class: 'swatch', style: 'background:' + item[2] }), ICON[item[0]] + ' ' + item[1]]));
+            });
+
+            renderEndBanner(view);
+            renderHistory(g.history, 'classique');
+        }
+
+        /** Dessine les 25 cartes. describe(i) → { cls, icon, icon2, label, clickable }. */
+        function renderBoard(words, describe, isRevealed) {
+            const board = clear($('board'));
+            const prev = ui.prevRevealed;
+            const now = words.map(function(_, i) { return isRevealed(i); });
+            words.forEach(function(word, i) {
+                const d = describe(i);
+                const fresh = prev && now[i] && !prev[i];
+                const card = el(d.clickable ? 'button' : 'div', {
+                    class: 'card ' + d.cls + (d.clickable ? ' clickable' : '') + (fresh ? ' just-revealed' : '') + (word.length > 9 ? ' long' : ''),
+                    role: d.clickable ? undefined : 'gridcell',
+                    'aria-label': word + (d.label ? ' — ' + d.label : ''),
+                    title: d.label || undefined,
+                    onclick: d.clickable ? function() { onCardClick(i, word); } : (d.onclick || undefined)
+                }, [
+                    d.icon ? el('span', { class: 'icon', 'aria-hidden': 'true', text: d.icon }) : null,
+                    d.icon2 ? el('span', { class: 'icon2', 'aria-hidden': 'true', text: d.icon2 }) : null,
+                    el('span', { class: 'word', text: word })
+                ]);
+                board.appendChild(card);
+            });
+            ui.prevRevealed = now;
+        }
+
+        function onCardClick(index) {
+            emit('game:guess', { index: index });
+        }
+
+        function renderEndBanner(view) {
+            const g = view.game;
+            const box = clear($('end-banner'));
+            box.className = 'hidden';
+            if (view.status !== 'terminee') return;
+            let title;
+            let detail;
+            let cls;
+            if (g.mode === 'classique') {
+                if (!g.winner) { title = 'Manche interrompue'; detail = ''; cls = ''; }
+                else {
+                    title = ICON[g.winner] + ' Victoire de l\'équipe ' + TEAM_LABEL[g.winner] + ' !';
+                    detail = g.endReason === 'assassin'
+                        ? 'L\'équipe ' + TEAM_LABEL[g.winner === 'rouge' ? 'bleu' : 'rouge'] + ' a touché l\'assassin ☠.'
+                        : 'Tous ses agents ont été retrouvés.';
+                    cls = g.winner;
+                }
+            } else {
+                cls = g.result === 'victoire' ? 'victoire' : 'defaite';
+                title = g.result === 'victoire' ? '🎉 Mission réussie !' : '💀 Mission échouée';
+                detail = g.endText || '';
+            }
+            box.className = 'end-banner ' + cls;
+            box.appendChild(el('h3', { text: title }));
+            if (detail) box.appendChild(el('div', { text: detail }));
+            if (view.match.totalRounds > 1 && g.mode === 'classique') {
+                box.appendChild(el('div', { style: 'margin-top:6px;font-weight:bold;', text: 'Score : Rouge ' + view.match.score.rouge + ' – ' + view.match.score.bleu + ' Bleue' + (view.match.over ? ' (partie terminée)' : ' (manche ' + view.match.round + '/' + view.match.totalRounds + ')') }));
+            }
+            box.appendChild(el('div', { style: 'margin-top:6px;font-size:0.85em;opacity:0.9;', text: 'Plateau complet révélé ci-dessous.' }));
+            const buttons = el('div', { class: 'buttons' });
+            if (isHost()) {
+                const nextLabel = view.match.over ? '🔁 Rejouer' : '▶ Manche suivante';
+                buttons.appendChild(el('button', { class: 'btn', onclick: function() { emit('game:next'); }, text: nextLabel + (g.mode === 'classique' && view.settings.classic.captainMode !== 'fixe' ? ' (rotation des capitaines)' : '') }));
+                buttons.appendChild(el('button', { class: 'btn', onclick: function() { emit('game:lobby'); }, text: '⚙️ Retour au lobby' }));
+            } else {
+                buttons.appendChild(el('span', { text: 'En attente de l\'hôte pour la suite…' }));
+            }
+            box.appendChild(buttons);
+        }
+
+        const END_TURN_TEXT = {
+            neutre: 'carte neutre, fin du tour',
+            adverse: 'carte adverse, fin du tour',
+            essais: 'plus d\'essais, fin du tour',
+            passe: 'passe son tour',
+            'temps-indice': 'temps écoulé pendant l\'indice',
+            'temps-devinette': 'temps écoulé pendant la devinette',
+            'temps': 'temps écoulé',
+            'capitaine-absent': 'capitaine absent'
+        };
+
+        function renderHistory(history, mode) {
+            const panel = clear($('history-panel'));
+            panel.className = 'panel';
+            panel.appendChild(el('h2', { text: '📜 Historique' }));
+            const list = el('div', { class: 'history' });
+            if (!history.length) list.appendChild(el('div', { class: 'empty', text: 'Aucun indice pour l\'instant.' }));
+            history.slice().reverse().forEach(function(h) {
+                const cls = mode === 'duo' ? 'duo' : (h.team || '');
+                let text;
+                if (h.type === 'indice') {
+                    const who = mode === 'duo' ? h.giverName : 'Équipe ' + TEAM_LABEL[h.team];
+                    text = '🎩 ' + who + ' : « ' + h.word + ' » ' + h.count;
+                    list.appendChild(el('div', { class: 'history-item clue ' + cls, text: text }));
+                    return;
+                }
+                if (h.type === 'carte') {
+                    const who = mode === 'duo' ? h.guesserName : TEAM_LABEL[h.team];
+                    text = '   ' + who + ' révèle ' + h.word.toUpperCase() + ' → ' + (ICON[h.color] || '') + ' ' + (h.color === 'assassin' ? 'ASSASSIN' : (mode === 'duo' && h.color === 'neutre' ? 'passant' : 'carte ' + COLOR_LABEL[h.color]));
+                } else if (h.type === 'fin-tour') {
+                    text = '   ↳ ' + (mode === 'duo' ? '' : TEAM_LABEL[h.team] + ' : ') + (END_TURN_TEXT[h.reason] || h.reason);
+                } else if (h.type === 'promotion') {
+                    text = '🎩 ' + h.name + ' devient capitaine (' + TEAM_LABEL[h.team] + ')';
+                } else if (h.type === 'info') {
+                    text = 'ℹ️ ' + h.text;
+                } else if (h.type === 'fin') {
+                    text = '🏁 Fin de la manche';
+                } else return;
+                list.appendChild(el('div', { class: 'history-item ' + cls, text: text }));
+            });
+            panel.appendChild(list);
         }
 
         // ==================== Initialisation ====================
