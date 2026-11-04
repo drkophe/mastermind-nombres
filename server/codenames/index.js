@@ -3,6 +3,9 @@
 const { RoomManager, CodenamesError } = require('./rooms');
 const { buildRoomView, schemaForClient } = require('./views');
 const { randomId, cleanText } = require('./util');
+const { MatchController } = require('./match');
+const { loadWordPacks } = require('./words');
+const { setAvailablePacks } = require('./settings');
 
 const ACTION_BURST = 25; // actions max par fenêtre
 const ACTION_WINDOW_MS = 5000;
@@ -33,6 +36,11 @@ function registerCodenames(io, options = {}) {
     onMemberDisconnected: (room, member) => hooks.onMemberDisconnected.forEach((fn) => fn(room, member)),
     onMemberReconnected: (room, member) => hooks.onMemberReconnected.forEach((fn) => fn(room, member))
   });
+
+  const packs = options.packs || loadWordPacks();
+  setAvailablePacks([...packs.keys()]);
+  const match = new MatchController({ manager, packs, rng: options.rng });
+  hooks.gameView = (room, member) => match.gameView(room, member);
 
   // ---------- Émission ----------
 
@@ -188,6 +196,14 @@ function registerCodenames(io, options = {}) {
       manager.changed(room, true);
     });
 
+    // ---------- Partie ----------
+    on('game:start', () => match.start(myRoom().id, playerId));
+    on('game:clue', (p) => match.clue(myRoom().id, playerId, p.word, p.count));
+    on('game:guess', (p) => match.guess(myRoom().id, playerId, p.index));
+    on('game:pass', () => match.pass(myRoom().id, playerId));
+    on('game:next', () => match.next(myRoom().id, playerId));
+    on('game:lobby', () => match.toLobby(myRoom().id, playerId));
+
     if (options.extendSocket) options.extendSocket(socket, { on, myRoom, playerId });
 
     socket.on('disconnect', () => {
@@ -202,7 +218,7 @@ function registerCodenames(io, options = {}) {
     });
   });
 
-  return { nsp, manager, hooks, emitTo, viewFor, isOnline: (id) => socketsOf.has(id) };
+  return { nsp, manager, match, hooks, emitTo, viewFor, isOnline: (id) => socketsOf.has(id) };
 }
 
 module.exports = { registerCodenames };

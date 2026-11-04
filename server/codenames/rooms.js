@@ -1,6 +1,7 @@
 'use strict';
 
 const { randomId, cleanText, shuffle, defaultRng } = require('./util');
+const { CodenamesError } = require('./errors');
 const {
   defaultSettings,
   sanitizeSettings,
@@ -18,8 +19,6 @@ const DEFAULT_TIMINGS = {
   emptyRoomMs: 2 * 60 * 1000, // salon sans personne de connecté : supprimé
   idleRoomMs: 3 * 60 * 60 * 1000 // salon sans aucune activité : supprimé
 };
-
-class CodenamesError extends Error {}
 
 const realScheduler = {
   setTimeout: (fn, ms) => setTimeout(fn, ms),
@@ -272,12 +271,7 @@ class RoomManager {
     member.connected = false;
     member.lastSeen = this.scheduler.now();
 
-    if (room.status === 'attente') {
-      this.setTimer(room, `lobby:${playerId}`, this.timings.lobbyGraceMs, () => {
-        const m = room.members.get(playerId);
-        if (m && !m.connected) this.leave(room.id, playerId);
-      });
-    }
+    if (room.status === 'attente') this.disconnectInLobby(room, member);
     if (room.hostId === playerId) {
       this.setTimer(room, 'host', this.timings.hostGraceMs, () => {
         const host = room.members.get(room.hostId);
@@ -294,6 +288,15 @@ class RoomManager {
     }
     this.onMemberDisconnected(room, member);
     this.changed(room, false);
+  }
+
+  /** Un joueur absent du lobby libère sa place après le délai de grâce. */
+  disconnectInLobby(room, member) {
+    const playerId = member.id;
+    this.setTimer(room, `lobby:${playerId}`, this.timings.lobbyGraceMs, () => {
+      const m = room.members.get(playerId);
+      if (m && !m.connected && room.status === 'attente') this.leave(room.id, playerId);
+    });
   }
 
   // ---------- Actions de lobby ----------
