@@ -2849,9 +2849,29 @@ function sanitizeQuatreImagesSettings(settings) {
 }
 
 // ==================== SOCKET.IO ====================
+// Protection XSS : les pages des jeux injectent pseudos et messages via innerHTML.
+// On neutralise les caractères HTML dangereux et on borne la longueur à l'entrée.
+function sanitizeUserText(value, maxLength) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[<>"'`&]/g, '').slice(0, maxLength);
+}
+
 io.on('connection', (socket) => {
   console.log('Nouvel utilisateur connecté:', socket.id);
-  
+
+  socket.use((packet, next) => {
+    const event = packet[0];
+    if (typeof event === 'string' && event.startsWith('join-')) {
+      packet[1] = sanitizeUserText(packet[1], 30).trim();
+    } else if (event === 'pendu-chat-message' || event === 'loup-chat-message') {
+      packet[1] = sanitizeUserText(packet[1], 500);
+    } else if (event === 'chat-message') {
+      const data = packet[1] && typeof packet[1] === 'object' ? packet[1] : {};
+      packet[1] = { game: String(data.game || ''), message: sanitizeUserText(data.message, 500) };
+    }
+    next();
+  });
+
   // ========== ÉVÉNEMENTS MASTERMIND ==========
   socket.on('join-mastermind', (playerName) => {
     socket.join('mastermind');
