@@ -3,6 +3,7 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { onePieceCharacters } = require('./data/onePieceCharacters');
+const { registerCodenames } = require('./server/codenames');
 
 const app = express();
 const server = http.createServer(app);
@@ -4237,6 +4238,9 @@ io.on('connection', (socket) => {
   });
 });
 
+// ==================== CODENAMES (namespace /codenames, module séparé) ====================
+registerCodenames(io);
+
 // ==================== ROUTES ====================
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -4264,6 +4268,10 @@ app.get('/loup-garou', (req, res) => {
 
 app.get('/quatre-images', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'quatre-images.html'));
+});
+
+app.get('/codenames', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'codenames.html'));
 });
 
 const PORT = process.env.PORT || 3000;

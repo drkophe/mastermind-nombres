@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codenames - Jeux Multijoueurs</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --rouge: #c62828;
+            --rouge-clair: #ffcdd2;
+            --bleu: #1565c0;
+            --bleu-clair: #bbdefb;
+            --neutre: #d7c9a7;
+            --neutre-fonce: #8d7b55;
+            --assassin: #212121;
+            --vert: #2e7d32;
+            --vert-clair: #c8e6c9;
+            --carte: #f5efe0;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #b71c1c 0%, #37474f 50%, #0d47a1 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #222;
+        }
+
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #263238 0%, #455a64 100%);
+            color: white;
+            padding: 20px 20px 16px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 { margin-bottom: 6px; font-size: 2em; }
+        .header .subtitle { opacity: 0.85; font-size: 0.95em; }
+
+        .back-button {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .back-button:hover { background: rgba(255,255,255,0.3); }
+
+        .hidden { display: none !important; }
+
+        .btn {
+            background: linear-gradient(135deg, #546e7a 0%, #263238 100%);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: bold;
+            transition: transform 0.15s ease, opacity 0.15s ease;
+        }
+        .btn:hover:not(:disabled) { transform: translateY(-1px); }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn.small { padding: 5px 10px; font-size: 0.8em; border-radius: 12px; }
+        .btn.rouge { background: linear-gradient(135deg, #e53935 0%, #b71c1c 100%); }
+        .btn.bleu { background: linear-gradient(135deg, #1e88e5 0%, #0d47a1 100%); }
+        .btn.vert { background: linear-gradient(135deg, #43a047 0%, #1b5e20 100%); }
+        .btn.clair { background: #eceff1; color: #37474f; }
+
+        input[type=text], select {
+            padding: 9px 12px;
+            border: 2px solid #cfd8dc;
+            border-radius: 10px;
+            font-size: 1em;
+        }
+        input[type=text]:focus, select:focus { outline: none; border-color: #546e7a; }
+
+        .status-message {
+            margin: 10px 20px 0;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+        .status-message.error { background: #ffebee; color: #b71c1c; }
+        .status-message.info { background: #e3f2fd; color: #0d47a1; }
+
+        /* ---------- Accueil ---------- */
+        .home { padding: 20px; display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+        .panel { background: #f8f9fa; border-radius: 12px; padding: 16px; border: 1px solid #e9ecef; }
+        .panel h2 { font-size: 1.15em; margin-bottom: 12px; color: #263238; }
+        .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+        .field label { font-size: 0.85em; font-weight: bold; color: #546e7a; }
+        .field.inline { flex-direction: row; align-items: center; gap: 8px; }
+
+        .rooms-table { width: 100%; border-collapse: collapse; }
+        .rooms-table th { text-align: left; font-size: 0.8em; color: #78909c; padding: 6px; border-bottom: 2px solid #e0e0e0; }
+        .rooms-table td { padding: 8px 6px; border-bottom: 1px solid #eceff1; vertical-align: middle; font-size: 0.92em; }
+        .rooms-table .details { font-size: 0.78em; color: #78909c; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
+        .badge.attente { background: #e8f5e9; color: #1b5e20; }
+        .badge.en_cours { background: #fff3e0; color: #e65100; }
+        .badge.mode { background: #eceff1; color: #37474f; }
+        .empty { color: #90a4ae; font-style: italic; padding: 14px 0; text-align: center; }
+        .room-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+        /* ---------- Salon ---------- */
+        .room-layout { display: grid; grid-template-columns: 1fr 320px; min-height: 600px; }
+        .room-main { padding: 16px 20px; min-width: 0; }
+        .sidebar { background: #f8f9fa; border-left: 1px solid #e9ecef; display: flex; flex-direction: column; min-height: 0; }
+        .room-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+        .room-title h2 { font-size: 1.3em; }
+        .room-title .share { font-size: 0.8em; color: #78909c; }
+
+        .lineup { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+        .team-box { border-radius: 12px; padding: 12px; border: 2px solid; min-height: 120px; }
+        .team-box.rouge { border-color: var(--rouge); background: #fff5f5; }
+        .team-box.bleu { border-color: var(--bleu); background: #f3f8ff; }
+        .team-box.duo { border-color: var(--vert); background: #f4fbf4; }
+        .team-box h3 { margin-bottom: 8px; font-size: 1em; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+        .team-box.rouge h3 { color: var(--rouge); }
+        .team-box.bleu h3 { color: var(--bleu); }
+        .team-box.duo h3 { color: var(--vert); }
+        .member { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px; border-radius: 8px; background: white; margin-bottom: 5px; font-size: 0.92em; }
+        .member .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .member.offline .name { opacity: 0.5; }
+        .member .tools { display: flex; gap: 4px; flex-shrink: 0; }
+        .team-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+        .spectators { margin-bottom: 14px; font-size: 0.9em; color: #546e7a; }
+
+        .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 16px; }
+        .lobby-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+        .sidebar-section { padding: 14px; border-bottom: 1px solid #e9ecef; }
+        .sidebar-section h3 { font-size: 0.95em; margin-bottom: 8px; color: #37474f; }
+
+        @media (max-width: 900px) {
+            body { padding: 0; }
+            .container { border-radius: 0; }
+            .home { grid-template-columns: 1fr; padding: 14px; }
+            .room-layout { grid-template-columns: 1fr; }
+            .sidebar { border-left: none; border-top: 1px solid #e9ecef; }
+            .room-main { padding: 12px; }
+            .header h1 { font-size: 1.5em; }
+            .header .subtitle { display: none; }
+            .back-button { position: static; transform: none; display: inline-block; margin-bottom: 8px; }
+            .rooms-table .col-details { display: none; }
+        }
+        @media (max-width: 600px) {
+            .lineup { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-button">← Retour</a>
+            <h1>🕵️ Codenames</h1>
+            <div class="subtitle">Trouvez vos agents grâce aux indices de votre capitaine — sans toucher l'assassin.</div>
+        </div>
+
+        <div id="status" class="status-message hidden" role="status" aria-live="polite"></div>
+
+        <!-- ===== Accueil : pseudo, création, liste des salons ===== -->
+        <div id="view-home" class="home">
+            <div>
+                <div class="panel">
+                    <h2>👤 Votre pseudo</h2>
+                    <div class="field">
+                        <input type="text" id="player-name" maxlength="20" placeholder="Entrez votre pseudo" autocomplete="nickname">
+                    </div>
+                </div>
+                <div class="panel" style="margin-top: 16px;">
+                    <h2>➕ Créer un salon</h2>
+                    <div class="field">
+                        <label for="new-room-name">Nom du salon</label>
+                        <input type="text" id="new-room-name" maxlength="40" placeholder="Salon de …">
+                    </div>
+                    <div class="field">
+                        <label for="new-room-mode">Mode</label>
+                        <select id="new-room-mode">
+                            <option value="classique">Classique (2 équipes, 4 à 12 joueurs)</option>
+                            <option value="duo">Duo (coopératif, 2 joueurs)</option>
+                        </select>
+                    </div>
+                    <button class="btn vert" id="create-room-btn">Créer et rejoindre</button>
+                </div>
+            </div>
+            <div class="panel">
+                <h2>📋 Salons publics</h2>
+                <table class="rooms-table">
+                    <thead>
+                        <tr>
+                            <th>Salon</th>
+                            <th>Mode</th>
+                            <th>Joueurs</th>
+                            <th>Statut</th>
+                            <th class="col-details">Paramètres</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="rooms-body"></tbody>
+                </table>
+                <div id="rooms-empty" class="empty">Aucun salon pour le moment. Créez le premier !</div>
+            </div>
+        </div>
+
+        <!-- ===== Salon ===== -->
+        <div id="view-room" class="room-layout hidden">
+            <div class="room-main">
+                <div class="room-title">
+                    <div>
+                        <h2 id="room-name"></h2>
+                        <div class="share" id="room-share"></div>
+                    </div>
+                    <div class="room-actions">
+                        <button class="btn clair small" id="copy-link-btn">🔗 Copier le lien</button>
+                        <button class="btn clair small" id="leave-room-btn">🚪 Quitter le salon</button>
+                    </div>
+                </div>
+
+                <!-- Lobby -->
+                <div id="lobby">
+                    <div id="lineup" class="lineup"></div>
+                    <div id="spectators" class="spectators"></div>
+                    <div class="panel">
+                        <h2>⚙️ Paramètres <span id="settings-hint" style="font-size:0.75em;color:#78909c;font-weight:normal;"></span></h2>
+                        <div id="settings-form" class="settings-grid"></div>
+                    </div>
+                    <div class="lobby-footer">
+                        <div id="lobby-info" style="color:#546e7a;font-size:0.9em;"></div>
+                        <button class="btn vert" id="start-btn">▶ Lancer la partie</button>
+                    </div>
+                </div>
+
+                <!-- Partie -->
+                <div id="game" class="hidden"></div>
+            </div>
+
+            <div class="sidebar">
+                <div class="sidebar-section">
+                    <h3>👥 Dans le salon</h3>
+                    <div id="members-list"></div>
+                </div>
+                <div id="chat-area" class="sidebar-section" style="flex:1;display:flex;flex-direction:column;min-height:300px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        'use strict';
+
+        // ==================== Utilitaires DOM (jamais d'innerHTML avec des données) ====================
+        function el(tag, attrs, children) {
+            const node = document.createElement(tag);
+            if (attrs) {
+                for (const [key, value] of Object.entries(attrs)) {
+                    if (value === undefined || value === null || value === false) continue;
+                    if (key === 'text') node.textContent = value;
+                    else if (key === 'class') node.className = value;
+                    else if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+                    else if (key === 'style') node.setAttribute('style', value);
+                    else if (value === true) node.setAttribute(key, '');
+                    else node.setAttribute(key, value);
+                }
+            }
+            (children || []).forEach(function(child) {
+                if (child === null || child === undefined || child === false) return;
+                node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+            });
+            return node;
+        }
+
+        function clear(node) {
+            while (node.firstChild) node.removeChild(node.firstChild);
+            return node;
+        }
+
+        function $(id) { return document.getElementById(id); }
+
+        const storage = {
+            get: function(key) { try { return localStorage.getItem(key); } catch (e) { return null; } },
+            set: function(key, value) { try { localStorage.setItem(key, value); } catch (e) { /* stockage indisponible */ } }
+        };
+
+        let statusTimeout = null;
+        function showStatus(message, type) {
+            const box = $('status');
+            box.textContent = message;
+            box.className = 'status-message ' + (type || 'info');
+            clearTimeout(statusTimeout);
+            statusTimeout = setTimeout(function() { box.className = 'status-message hidden'; }, 4500);
+        }
+
+        // ==================== État client ====================
+        const app = {
+            socket: null,
+            playerId: null,
+            schema: null,
+            rooms: [],
+            room: null,          // dernière vue reçue du serveur
+            settingsDraftAt: 0
+        };
+
+        const TEAM_LABEL = { rouge: 'Rouge', bleu: 'Bleue' };
+        const MODE_LABEL = { classique: 'Classique', duo: 'Duo' };
+        const ENUM_LABELS = {
+            mode: { classique: 'Classique', duo: 'Duo' },
+            wordPack: { classique: 'Mots courants' },
+            captainMode: { 'fixe': 'Fixes pour toute la session', 'rotation-tour': 'Rotation à tour de rôle', 'rotation-aleatoire': 'Rotation aléatoire' },
+            startingTeam: { aleatoire: 'Aléatoire', alternee: 'Alternée', rouge: 'Rouge', bleu: 'Bleue' },
+            teamAssignment: { manuelle: 'Manuelle (chacun choisit)', aleatoire: 'Aléatoire (tirage par l\'hôte)' }
+        };
+
+        function emit(event, payload) {
+            return new Promise(function(resolve) {
+                app.socket.emit(event, payload || {}, function(res) {
+                    if (res && !res.ok && res.error) showStatus(res.error, 'error');
+                    resolve(res || { ok: false });
+                });
+            });
+        }
+
+        function playerName() {
+            const name = $('player-name').value.trim();
+            if (!name) {
+                showStatus('Choisissez d\'abord un pseudo.', 'error');
+                $('player-name').focus();
+                return null;
+            }
+            storage.set('cn-pseudo', name);
+            return name;
+        }
+
+        // ==================== Connexion ====================
+        function connect() {
+            app.socket = io('/codenames', { auth: { token: storage.get('cn-token') || undefined } });
+
+            app.socket.on('session', function(data) {
+                storage.set('cn-token', data.token);
+                app.socket.auth = { token: data.token };
+                app.playerId = data.playerId;
+                app.schema = data.schema;
+                if (!app.room) {
+                    app.socket.emit('rooms:subscribe', {});
+                    autoJoinFromUrl();
+                }
+            });
+
+            app.socket.on('rooms:list', function(list) {
+                app.rooms = list;
+                renderRoomList();
+            });
+
+            app.socket.on('room:state', function(view) {
+                const first = !app.room || app.room.id !== view.id;
+                app.room = view;
+                if (first) enterRoom(view);
+                renderRoom();
+            });
+
+            app.socket.on('room:left', function() {
+                exitRoom();
+            });
+
+            app.socket.on('disconnect', function() {
+                showStatus('Connexion perdue, reconnexion en cours…', 'error');
+            });
+            app.socket.io.on('reconnect', function() {
+                showStatus('Reconnecté !', 'info');
+            });
+        }
+
+        function autoJoinFromUrl() {
+            const roomId = new URLSearchParams(location.search).get('salon');
+            if (roomId && $('player-name').value.trim()) joinRoom(roomId, false);
+        }
+
+        // ==================== Liste des salons ====================
+        function renderRoomList() {
+            const body = clear($('rooms-body'));
+            $('rooms-empty').classList.toggle('hidden', app.rooms.length > 0);
+            app.rooms.forEach(function(room) {
+                const full = room.players >= room.maxPlayers;
+                const canPlay = room.status === 'attente' && !full;
+                body.appendChild(el('tr', null, [
+                    el('td', null, [
+                        el('strong', { text: room.name }),
+                        el('div', { class: 'details', text: 'Hôte : ' + room.hostName })
+                    ]),
+                    el('td', null, [el('span', { class: 'badge mode', text: MODE_LABEL[room.mode] })]),
+                    el('td', { text: room.players + ' / ' + room.maxPlayers + (room.spectators ? ' (+' + room.spectators + ' 👁)' : '') }),
+                    el('td', null, [el('span', { class: 'badge ' + room.status, text: room.status === 'attente' ? 'En attente' : 'En cours' })]),
+                    el('td', { class: 'col-details details', text: room.details.join(' · ') }),
+                    el('td', null, [el('div', { class: 'room-actions' }, [
+                        el('button', { class: 'btn small vert', disabled: !canPlay, onclick: function() { joinRoom(room.id, false); } , text: 'Jouer' }),
+                        room.spectatorsAllowed ? el('button', { class: 'btn small clair', onclick: function() { joinRoom(room.id, true); }, text: '👁 Regarder' }) : null
+                    ])])
+                ]));
+            });
+        }
+
+        async function createRoom() {
+            const name = playerName();
+            if (!name) return;
+            await emit('room:create', {
+                playerName: name,
+                roomName: $('new-room-name').value.trim(),
+                settings: { mode: $('new-room-mode').value }
+            });
+        }
+
+        async function joinRoom(roomId, asSpectator) {
+            const name = playerName();
+            if (!name) return;
+            await emit('room:join', { roomId: roomId, playerName: name, asSpectator: asSpectator });
+        }
+
+        // ==================== Salon ====================
+        function enterRoom(view) {
+            app.socket.emit('rooms:unsubscribe', {});
+            $('view-home').classList.add('hidden');
+            $('view-room').classList.remove('hidden');
+            const url = new URL(location.href);
+            url.searchParams.set('salon', view.id);
+            history.replaceState(null, '', url);
+        }
+
+        function exitRoom() {
+            app.room = null;
+            $('view-room').classList.add('hidden');
+            $('view-home').classList.remove('hidden');
+            const url = new URL(location.href);
+            url.searchParams.delete('salon');
+            history.replaceState(null, '', url);
+            app.socket.emit('rooms:subscribe', {});
+        }
+
+        function me() { return app.room && app.room.me; }
+        function isHost() { return !!(me() && me().isHost); }
+
+        function renderRoom() {
+            const view = app.room;
+            if (!view) return;
+            $('room-name').textContent = view.name;
+            $('room-share').textContent = MODE_LABEL[view.settings.mode] + ' · ' +
+                view.members.filter(function(m) { return m.kind === 'joueur'; }).length + '/' + view.maxPlayers + ' joueurs';
+            renderMembers();
+            const inLobby = view.status === 'attente';
+            $('lobby').classList.toggle('hidden', !inLobby);
+            $('game').classList.toggle('hidden', inLobby);
+            if (inLobby) renderLobby();
+            else if (typeof renderGame === 'function') renderGame();
+        }
+
+        function memberLabel(m) {
+            let label = m.name;
+            if (m.isHost) label += ' ⭐';
+            return label;
+        }
+
+        function renderMembers() {
+            const list = clear($('members-list'));
+            app.room.members.forEach(function(m) {
+                let info = m.kind === 'spectateur' ? '👁 spectateur'
+                    : app.room.settings.mode === 'duo' ? 'Joueur ' + (m.side || '?')
+                    : (m.role === 'capitaine' ? '🎩 capitaine ' : 'agent ') + (TEAM_LABEL[m.team] || '').toLowerCase();
+                list.appendChild(el('div', { class: 'member' + (m.connected ? '' : ' offline') }, [
+                    el('span', { class: 'name', text: (m.connected ? '🟢 ' : '⚪ ') + memberLabel(m) + (m.id === app.playerId ? ' (vous)' : '') }),
+                    el('span', { style: 'font-size:0.8em;color:#78909c;', text: info })
+                ]));
+            });
+        }
+
+        function hostTools(m) {
+            if (!isHost() || m.id === app.playerId) return null;
+            return el('span', { class: 'tools' }, [
+                el('button', { class: 'btn small clair', title: 'Donner le rôle d\'hôte', onclick: function() { emit('room:transfer-host', { playerId: m.id }); }, text: '⭐' })
+            ]);
+        }
+
+        function renderLobby() {
+            const view = app.room;
+            const mine = me();
+            const lineup = clear($('lineup'));
+            const players = view.members.filter(function(m) { return m.kind === 'joueur'; });
+            const manual = view.settings.classic.teamAssignment === 'manuelle';
+
+            if (view.settings.mode === 'classique') {
+                ['rouge', 'bleu'].forEach(function(team) {
+                    const members = players.filter(function(m) { return m.team === team; });
+                    const box = el('div', { class: 'team-box ' + team }, [
+                        el('h3', null, ['Équipe ' + TEAM_LABEL[team], el('span', { style: 'font-size:0.8em;', text: members.length + ' joueur(s)' })])
+                    ]);
+                    members.sort(function(a, b) { return (b.role === 'capitaine') - (a.role === 'capitaine'); }).forEach(function(m) {
+                        const tools = isHost() && m.id !== app.playerId ? el('span', { class: 'tools' }, [
+                            el('button', { class: 'btn small clair', title: 'Changer d\'équipe', onclick: function() { emit('room:assign', { playerId: m.id, team: team === 'rouge' ? 'bleu' : 'rouge' }); }, text: '⇄' }),
+                            m.role !== 'capitaine' ? el('button', { class: 'btn small clair', title: 'Nommer capitaine', onclick: function() { emit('room:assign', { playerId: m.id, role: 'capitaine' }); }, text: '🎩' }) : null,
+                            el('button', { class: 'btn small clair', title: 'Passer spectateur', onclick: function() { emit('room:assign', { playerId: m.id, kind: 'spectateur' }); }, text: '👁' }),
+                            el('button', { class: 'btn small clair', title: 'Donner le rôle d\'hôte', onclick: function() { emit('room:transfer-host', { playerId: m.id }); }, text: '⭐' })
+                        ]) : null;
+                        box.appendChild(el('div', { class: 'member' + (m.connected ? '' : ' offline') }, [
+                            el('span', { class: 'name', text: (m.role === 'capitaine' ? '🎩 ' : '🕵️ ') + memberLabel(m) + (m.id === app.playerId ? ' (vous)' : '') }),
+                            tools
+                        ]));
+                    });
+                    const actions = el('div', { class: 'team-actions' });
+                    if (mine && (manual || isHost())) {
+                        if (mine.kind !== 'joueur' || mine.team !== team) {
+                            actions.appendChild(el('button', { class: 'btn small ' + team, onclick: function() { emit('room:assign', { kind: 'joueur', team: team, role: 'agent' }); }, text: 'Rejoindre' }));
+                        } else if (mine.role !== 'capitaine') {
+                            actions.appendChild(el('button', { class: 'btn small ' + team, onclick: function() { emit('room:assign', { role: 'capitaine' }); }, text: '🎩 Devenir capitaine' }));
+                        } else {
+                            actions.appendChild(el('button', { class: 'btn small clair', onclick: function() { emit('room:assign', { role: 'agent' }); }, text: 'Redevenir agent' }));
+                        }
+                    }
+                    box.appendChild(actions);
+                    lineup.appendChild(box);
+                });
+            } else {
+                ['A', 'B'].forEach(function(side) {
+                    const m = players.find(function(p) { return p.side === side; });
+                    const box = el('div', { class: 'team-box duo' }, [el('h3', { text: 'Joueur ' + side })]);
+                    if (m) {
+                        box.appendChild(el('div', { class: 'member' + (m.connected ? '' : ' offline') }, [
+                            el('span', { class: 'name', text: memberLabel(m) + (m.id === app.playerId ? ' (vous)' : '') }),
+                            hostTools(m)
+                        ]));
+                    } else {
+                        box.appendChild(el('div', { class: 'empty', text: 'Place libre' }));
+                    }
+                    const actions = el('div', { class: 'team-actions' });
+                    if (mine && (!m || m.id !== app.playerId)) {
+                        if (mine.kind === 'joueur' || !m) {
+                            actions.appendChild(el('button', { class: 'btn small vert', onclick: function() { emit('room:assign', { kind: 'joueur', side: side }); }, text: m ? 'Échanger les places' : 'Prendre cette place' }));
+                        }
+                    }
+                    box.appendChild(actions);
+                    lineup.appendChild(box);
+                });
+            }
+
+            // Spectateurs
+            const spectators = view.members.filter(function(m) { return m.kind === 'spectateur'; });
+            const specBox = clear($('spectators'));
+            specBox.appendChild(el('strong', { text: '👁 Spectateurs : ' }));
+            specBox.appendChild(document.createTextNode(spectators.length ? spectators.map(function(m) { return m.name; }).join(', ') : 'aucun'));
+            if (mine && mine.kind === 'joueur' && (view.settings.spectatorsAllowed || isHost())) {
+                specBox.appendChild(document.createTextNode(' '));
+                specBox.appendChild(el('button', { class: 'btn small clair', onclick: function() { emit('room:assign', { kind: 'spectateur' }); }, text: 'Devenir spectateur' }));
+            }
+            if (isHost() && view.settings.mode === 'classique') {
+                specBox.appendChild(document.createTextNode(' '));
+                specBox.appendChild(el('button', { class: 'btn small clair', onclick: function() { emit('room:shuffle'); }, text: '🎲 Répartir au hasard' }));
+            }
+
+            renderSettings();
+
+            const count = players.length;
+            $('lobby-info').textContent = isHost()
+                ? (count < view.minPlayers ? 'En attente de joueurs (' + count + '/' + view.minPlayers + ' minimum).' : 'Prêt à lancer !')
+                : 'En attente du lancement par l\'hôte…';
+            $('start-btn').classList.toggle('hidden', !isHost());
+            $('start-btn').disabled = count < view.minPlayers;
+        }
+
+        // ---------- Formulaire de paramètres généré depuis le schéma serveur ----------
+        function renderSettings() {
+            if (!app.schema) return;
+            // Ne pas écraser le formulaire pendant que l'hôte est en train de saisir
+            const form = $('settings-form');
+            if (form.contains(document.activeElement) && Date.now() - app.settingsDraftAt < 1500) return;
+            clear(form);
+            const view = app.room;
+            const editable = isHost() && view.status === 'attente';
+            $('settings-hint').textContent = editable ? '(modifiables jusqu\'au lancement)' : '(définis par l\'hôte)';
+
+            function addField(path, def, value) {
+                const key = path[path.length - 1];
+                const id = 'set-' + path.join('-');
+                let input;
+                if (def.type === 'bool') {
+                    input = el('input', { type: 'checkbox', id: id, checked: !!value, disabled: !editable });
+                    form.appendChild(el('div', { class: 'field inline' }, [input, el('label', { for: id, text: def.label })]));
+                } else {
+                    if (def.type === 'enum') {
+                        input = el('select', { id: id, disabled: !editable }, def.values.map(function(v) {
+                            return el('option', { value: v, selected: v === value, text: (ENUM_LABELS[key] && ENUM_LABELS[key][v]) || v });
+                        }));
+                    } else {
+                        input = el('input', { type: 'number', id: id, min: def.min, max: def.max, value: value, disabled: !editable, style: 'padding:8px;border:2px solid #cfd8dc;border-radius:10px;' });
+                    }
+                    form.appendChild(el('div', { class: 'field' }, [el('label', { for: id, text: def.label }), input]));
+                }
+                input.addEventListener('change', function() {
+                    app.settingsDraftAt = Date.now();
+                    const patch = {};
+                    let cursor = patch;
+                    path.slice(0, -1).forEach(function(p) { cursor[p] = {}; cursor = cursor[p]; });
+                    cursor[key] = def.type === 'bool' ? input.checked : def.type === 'int' ? parseInt(input.value, 10) : input.value;
+                    emit('room:settings', { settings: patch });
+                });
+            }
+
+            const mode = view.settings.mode;
+            Object.entries(app.schema).forEach(function(entry) {
+                const key = entry[0];
+                const def = entry[1];
+                if (def.type !== 'group') { addField([key], def, view.settings[key]); return; }
+                if ((key === 'classic' && mode !== 'classique') || (key === 'duo' && mode !== 'duo')) return;
+                Object.entries(def.fields).forEach(function(sub) {
+                    const subKey = sub[0];
+                    // Champs de durée affichés seulement si le timer est actif
+                    if ((subKey === 'clueSeconds' || subKey === 'guessSeconds' || subKey === 'turnSeconds') && !view.settings[key].timerEnabled) return;
+                    addField([key, subKey], sub[1], view.settings[key][subKey]);
+                });
+            });
+        }
+
+        // ==================== Initialisation ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            $('player-name').value = storage.get('cn-pseudo') || '';
+            $('create-room-btn').addEventListener('click', createRoom);
+            $('leave-room-btn').addEventListener('click', function() { emit('room:leave'); });
+            $('copy-link-btn').addEventListener('click', function() {
+                const link = location.origin + '/codenames?salon=' + encodeURIComponent(app.room.id);
+                if (navigator.clipboard) navigator.clipboard.writeText(link).then(function() { showStatus('Lien copié !', 'info'); });
+                else showStatus(link, 'info');
+            });
+            $('start-btn').addEventListener('click', function() { emit('game:start'); });
+            $('player-name').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && new URLSearchParams(location.search).get('salon')) autoJoinFromUrl();
+            });
+            connect();
+        });
+    </script>
+</body>
+</html>
