@@ -797,7 +797,34 @@
             ]);
         }
 
-        function renderTimer() { /* complété avec le timer (étape 5) */ }
+        // Timer : le serveur décide de l'expiration ; le client affiche un décompte local
+        // resynchronisé à chaque état reçu.
+        const timerState = { deadline: null, paused: false, remainingMs: 0, interval: null };
+
+        function renderTimer() {
+            const t = app.room && app.room.status === 'en_cours' ? app.room.timer : null;
+            if (!t) {
+                timerState.deadline = null;
+            } else {
+                timerState.paused = t.paused;
+                timerState.remainingMs = t.remainingMs;
+                timerState.deadline = Date.now() + t.remainingMs;
+            }
+            if (!timerState.interval) timerState.interval = setInterval(tickTimer, 250);
+            tickTimer();
+        }
+
+        function tickTimer() {
+            const box = $('timer-box');
+            if (!box) return;
+            if (!timerState.deadline) { box.classList.add('hidden'); return; }
+            box.classList.remove('hidden');
+            const ms = timerState.paused ? timerState.remainingMs : Math.max(0, timerState.deadline - Date.now());
+            const total = Math.ceil(ms / 1000);
+            const text = Math.floor(total / 60) + ':' + String(total % 60).padStart(2, '0');
+            $('timer-value').textContent = timerState.paused ? '⏸ ' + text + ' (pause)' : text;
+            box.classList.toggle('urgent', !timerState.paused && total <= 10);
+        }
 
         // ---------- Classique ----------
         function renderClassic(view) {

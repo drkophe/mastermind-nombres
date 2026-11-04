@@ -5,6 +5,7 @@ const { defaultRng, shuffle } = require('./util');
 const { generateClassicKey, drawWords } = require('./board');
 const classic = require('./classic');
 const { TEAMS } = require('./rooms');
+const { TurnTimer } = require('./timer');
 
 /**
  * Orchestration des manches : lancement, actions des joueurs, fin de manche,
@@ -15,6 +16,7 @@ class MatchController {
     this.manager = manager;
     this.packs = packs;
     this.rng = rng;
+    this.timer = new TurnTimer(manager);
   }
 
   // ---------- Utilitaires ----------
@@ -61,6 +63,7 @@ class MatchController {
     room.chat.teams = { rouge: [], bleu: [], duo: [] }; // le chat d'équipe repart à zéro à chaque manche
     if (room.settings.mode === 'classique') this.startClassicRound(room);
     room.status = 'en_cours';
+    this.syncTimer(room);
     this.manager.touch(room);
     this.manager.changed(room, true);
   }
@@ -132,6 +135,7 @@ class MatchController {
   /** Après chaque action : fin de manche éventuelle, puis diffusion. */
   afterAction(room) {
     if (room.game.phase === 'fin') this.endRound(room);
+    this.syncTimer(room);
     this.manager.touch(room);
     this.manager.changed(room, room.status !== 'en_cours');
   }
@@ -139,6 +143,7 @@ class MatchController {
   endRound(room) {
     const game = room.game;
     room.status = 'terminee';
+    this.timer.stop(room);
     if (game.mode === 'classique' && game.winner) room.match.score[game.winner]++;
     const rounds = room.settings.mode === 'classique' ? room.settings.classic.rounds : 1;
     room.match.over = room.match.round >= rounds;
@@ -168,6 +173,7 @@ class MatchController {
     if (room.game && room.game.phase !== 'fin') {
       if (room.game.mode === 'classique') classic.abort(room.game);
     }
+    this.timer.stop(room);
     room.game = null;
     room.status = 'attente';
     room.notice = null;
@@ -178,6 +184,39 @@ class MatchController {
     }
     this.manager.touch(room);
     this.manager.changed(room, true);
+  }
+
+  // ---------- Timer ----------
+
+  /** (Ré)arme le timer selon la phase en cours ; ne fait rien si la phase n'a pas changé. */
+  syncTimer(room) {
+    const game = room.game;
+    if (room.status !== 'en_cours' || !game || game.phase === 'fin') {
+      this.timer.stop(room);
+      return;
+    }
+    let signature;
+    let seconds = 0;
+    if (game.mode === 'classique') {
+      const s = room.settings.classic;
+      signature = `${room.match.round}:${game.turnNumber}:${game.phase}`;
+      if (s.timerEnabled) seconds = game.phase === 'indice' ? s.clueSeconds : s.guessSeconds;
+    } else {
+      const s = room.settings.duo;
+      signature = `${room.match.round}:${game.turnNumber}:${game.phase === 'mort-subite' ? 'ms' : 'tour'}`;
+      if (s.timerEnabled && game.phase !== 'mort-subite') seconds = s.turnSeconds;
+    }
+    this.timer.sync(room, signature, seconds * 1000, () => this.onTimeout(room));
+    if (room.paused) this.timer.pause(room);
+  }
+
+  /** Expiration : l'équipe (ou le duo) passe son tour. */
+  onTimeout(room) {
+    const game = room.game;
+    if (!game || room.status !== 'en_cours' || room.paused) return;
+    if (game.mode === 'classique') classic.timeout(game);
+    else this.duoTimeout(room);
+    this.afterAction(room);
   }
 
   // ---------- Vue ----------
@@ -195,6 +234,7 @@ class MatchController {
   duoGuess() { throw new CodenamesError('Mode non disponible.'); }
   duoPass() { throw new CodenamesError('Mode non disponible.'); }
   duoView() { return null; }
+  duoTimeout() {}
 }
 
 /**

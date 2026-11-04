@@ -41,6 +41,7 @@ function registerCodenames(io, options = {}) {
   setAvailablePacks([...packs.keys()]);
   const match = new MatchController({ manager, packs, rng: options.rng });
   hooks.gameView = (room, member) => match.gameView(room, member);
+  hooks.timerView = (room) => match.timer.view(room);
 
   // ---------- Émission ----------
 
