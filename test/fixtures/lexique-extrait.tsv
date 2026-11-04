@@ -1,0 +1,22 @@
+ortho	phon	lemme	cgram	genre	nombre	freqlemfilms2	freqlemlivres	freqfilms2	freqlivres	islem	nblettres
+chat	Sa	chat	NOM	m	s	60	40	50	30	1	4
+chats	Sa	chat	NOM	m	p	60	40	10	10	0	5
+chatte	Sat	chat	NOM	f	s	60	40	5	5	0	6
+été	ete	été	NOM	m	s	30	40	30	40	1	3
+été	ete	être	VER			1000	1000	900	1500	0	3
+pomme-de-terre	pOmd@tER	pomme-de-terre	NOM	f	s	5	5	5	5	1	14
+Paris	paRi	Paris	NOM	m	s	80	80	80	80	1	5
+merde	mERd	merde	NOM	f	s	300	30	300	30	1	5
+ox	oks	ox	NOM	m	s	10	10	10	10	1	2
+abscisse	apsis	abscisse	NOM	f	s	0.1	0.2	0.1	0.2	1	8
+boulangère	bul@ZER	boulanger	NOM	f	s	8	8	4	4	0	10
+boulanger	bul@Ze	boulanger	NOM	m	s	8	8	4	4	1	9
+boulanger	bul@Ze	boulanger	VER			1	1	1	1	1	9
+livre	livR	livre	NOM	m	s	200	300	150	250	1	5
+livre	livR	livre	NOM	f	s	20	30	15	25	1	5
+livre	livR	livrer	VER			10	10	5	5	0	5
+anticonstitutionnel	@ti	anticonstitutionnel	NOM	m	s	5	5	5	5	1	19
+gens	Z@	gens	NOM	m	p	500	400	500	400	1	4
+marche	maRS	marche	NOM	f	s	40	40	30	30	1	6
+marche	maRS	marcher	VER			100	100	80	80	0	6
+lune	lyn	lune	NOM	f	s	50	60	40	50	1	4
