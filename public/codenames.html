@@ -771,7 +771,7 @@
 
         function buildGameSkeleton() {
             const game = clear($('game'));
-            ['game-status', 'end-banner', 'clue-banner', 'action-bar', 'board', 'legend', 'history-panel'].forEach(function(id) {
+            ['game-status', 'game-notice', 'end-banner', 'clue-banner', 'action-bar', 'board', 'legend', 'history-panel'].forEach(function(id) {
                 game.appendChild(el('div', { id: id }));
             });
             $('board').className = 'board';
@@ -811,7 +811,28 @@
             if (ui.roundKey !== roundKey) { ui.roundKey = roundKey; ui.prevRevealed = null; }
             if (view.game.mode === 'classique') renderClassic(view);
             else if (typeof renderDuo === 'function') renderDuo(view);
+            renderNotice(view);
             renderTimer();
+        }
+
+        /** Pause (Duo) ou capitaine absent (Classique), avec promotion par l'hôte. */
+        function renderNotice(view) {
+            const box = clear($('game-notice'));
+            box.className = 'hidden';
+            if (!view.notice || view.status !== 'en_cours') return;
+            box.className = 'status-message error';
+            box.setAttribute('role', 'alert');
+            box.appendChild(el('div', { text: (view.paused ? '⏸ ' : '⚠️ ') + view.notice.text }));
+            if (view.notice.type === 'capitaine-absent' && isHost()) {
+                const tools = el('div', { style: 'margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;' });
+                view.notice.teams.forEach(function(team) {
+                    view.members.filter(function(m) { return m.kind === 'joueur' && m.team === team && m.role === 'agent' && m.connected; })
+                        .forEach(function(m) {
+                            tools.appendChild(el('button', { class: 'btn small ' + team, onclick: function() { emit('game:promote', { playerId: m.id }); }, text: '🎩 Nommer ' + m.name + ' capitaine' }));
+                        });
+                });
+                box.appendChild(tools);
+            }
         }
 
         function timerBox() {

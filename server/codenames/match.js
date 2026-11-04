@@ -12,8 +12,13 @@ const { TurnTimer } = require('./timer');
  * Orchestration des manches : lancement, actions des joueurs, fin de manche,
  * manches suivantes. S'appuie sur la logique pure (classic.js / duo.js).
  */
+const CAPTAIN_GRACE_MS = 60 * 1000; // capitaine absent : l'hôte peut nommer un remplaçant
+const CAPTAIN_AUTO_MS = 60 * 1000; // puis promotion automatique après ce délai supplémentaire
+
 class MatchController {
-  constructor({ manager, packs, rng = defaultRng }) {
+  constructor({ manager, packs, rng = defaultRng, timings = {} }) {
+    this.captainGraceMs = timings.captainGraceMs || CAPTAIN_GRACE_MS;
+    this.captainAutoMs = timings.captainAutoMs || CAPTAIN_AUTO_MS;
     this.manager = manager;
     this.packs = packs;
     this.rng = rng;
@@ -31,6 +36,7 @@ class MatchController {
 
   requireGame(room) {
     if (!room.game || room.status !== 'en_cours') throw new CodenamesError('Aucune manche en cours.');
+    if (room.paused) throw new CodenamesError('Partie en pause : un joueur est déconnecté.');
     return room.game;
   }
 
@@ -65,6 +71,8 @@ class MatchController {
     if (room.settings.mode === 'classique') this.startClassicRound(room);
     else this.startDuoRound(room);
     room.status = 'en_cours';
+    room.paused = false;
+    this.refreshPresence(room);
     this.syncTimer(room);
     this.manager.touch(room);
     this.manager.changed(room, true);
@@ -148,6 +156,8 @@ class MatchController {
   /** Après chaque action : fin de manche éventuelle, puis diffusion. */
   afterAction(room) {
     if (room.game.phase === 'fin') this.endRound(room);
+    this.updatePause(room);
+    room.notice = this.buildNotice(room);
     this.syncTimer(room);
     this.manager.touch(room);
     this.manager.changed(room, room.status !== 'en_cours');
@@ -156,6 +166,9 @@ class MatchController {
   endRound(room) {
     const game = room.game;
     room.status = 'terminee';
+    room.paused = false;
+    room.notice = null;
+    this.clearCaptainWatch(room);
     this.timer.stop(room);
     if (game.mode === 'classique' && game.winner) room.match.score[game.winner]++;
     const rounds = room.settings.mode === 'classique' ? room.settings.classic.rounds : 1;
@@ -188,6 +201,8 @@ class MatchController {
       else duo.abort(room.game);
     }
     this.timer.stop(room);
+    this.clearCaptainWatch(room);
+    room.paused = false;
     room.game = null;
     room.status = 'attente';
     room.notice = null;
@@ -198,6 +213,149 @@ class MatchController {
     }
     this.manager.touch(room);
     this.manager.changed(room, true);
+  }
+
+  // ---------- Présence : déconnexions, reconnexions, départs ----------
+
+  /**
+   * La partie est en pause quand le joueur qui doit agir manque :
+   * - Duo : l'un des deux joueurs est déconnecté ;
+   * - Classique : le capitaine de l'équipe en cours est absent pendant la phase d'indice.
+   */
+  shouldPause(room) {
+    const game = room.game;
+    if (room.status !== 'en_cours' || !game || game.phase === 'fin') return false;
+    const players = this.manager.players(room);
+    if (game.mode === 'duo') return players.some((p) => !p.connected);
+    if (game.phase !== 'indice') return false;
+    const captain = players.find((p) => p.team === game.currentTeam && p.role === 'capitaine');
+    return !captain || !captain.connected;
+  }
+
+  updatePause(room) {
+    const paused = this.shouldPause(room);
+    if (paused === !!room.paused) return;
+    room.paused = paused;
+    if (paused) this.timer.pause(room);
+    else this.timer.resume(room);
+  }
+
+  /** Recalcule pause et surveillance des capitaines après un changement de présence. */
+  refreshPresence(room) {
+    if (room.status !== 'en_cours' || !room.game) return;
+    if (room.game.mode === 'classique') {
+      for (const team of TEAMS) {
+        const captain = this.manager.players(room).find((p) => p.team === team && p.role === 'capitaine');
+        if (!captain || !captain.connected) this.watchCaptain(room, team);
+        else this.clearCaptainWatch(room, team);
+      }
+    }
+    this.updatePause(room);
+    room.notice = this.buildNotice(room);
+  }
+
+  buildNotice(room) {
+    if (room.status !== 'en_cours' || !room.game) return null;
+    if (room.game.mode === 'duo') {
+      const missing = this.manager.players(room).filter((p) => !p.connected);
+      return missing.length ? { type: 'pause', text: `${missing.map((p) => p.name).join(' et ')} est déconnecté(e) : partie en pause en attendant son retour.` } : null;
+    }
+    const players = this.manager.players(room);
+    const absent = TEAMS.filter((t) => {
+      const captain = players.find((p) => p.team === t && p.role === 'capitaine');
+      return !captain || !captain.connected;
+    });
+    if (!absent.length) return null;
+    const total = Math.round((this.captainGraceMs + this.captainAutoMs) / 60000);
+    return {
+      type: 'capitaine-absent',
+      teams: absent,
+      text: absent.map((t) => `Le capitaine de l'équipe ${t === 'rouge' ? 'Rouge' : 'Bleue'} est déconnecté.`).join(' ') +
+        (room.paused ? ' Partie en pause.' : '') +
+        ` L'hôte peut nommer un agent capitaine ; sinon un agent sera promu automatiquement après ${total} min.`
+    };
+  }
+
+  watchCaptain(room, team) {
+    const graceKey = `capitaine:${team}`;
+    if (room.timers.has(graceKey) || room.timers.has(`capitaine-auto:${team}`)) return;
+    if ((room.absentCaptains || []).includes(team)) {
+      // Délais écoulés sans agent disponible : on retente dès qu'un agent est là.
+      this.autoPromote(room, team);
+      return;
+    }
+    this.manager.setTimer(room, graceKey, this.captainGraceMs, () => {
+      room.absentCaptains = [...new Set([...(room.absentCaptains || []), team])];
+      room.notice = this.buildNotice(room);
+      this.manager.changed(room, false);
+      this.manager.setTimer(room, `capitaine-auto:${team}`, this.captainAutoMs, () => this.autoPromote(room, team));
+    });
+  }
+
+  clearCaptainWatch(room, team) {
+    for (const t of team ? [team] : TEAMS) {
+      this.manager.clearTimer(room, `capitaine:${t}`);
+      this.manager.clearTimer(room, `capitaine-auto:${t}`);
+      room.absentCaptains = (room.absentCaptains || []).filter((x) => x !== t);
+    }
+  }
+
+  autoPromote(room, team) {
+    if (room.status !== 'en_cours') return;
+    const candidates = this.manager.players(room)
+      .filter((p) => p.team === team && p.role === 'agent' && p.connected)
+      .sort((a, b) => a.joinedAt - b.joinedAt);
+    if (candidates.length) this.promote(room, candidates[0], 'automatique');
+  }
+
+  promote(room, member, how) {
+    for (const p of this.manager.players(room)) {
+      if (p.team === member.team && p.role === 'capitaine') p.role = 'agent';
+    }
+    member.role = 'capitaine';
+    this.clearCaptainWatch(room, member.team);
+    if (room.game && room.game.mode === 'classique') {
+      room.game.history.push({ type: 'promotion', team: member.team, name: member.name, how });
+    }
+    this.refreshPresence(room);
+    this.syncTimer(room);
+    this.manager.changed(room, false);
+  }
+
+  /** L'hôte nomme un agent capitaine quand le capitaine de son équipe est absent. */
+  hostPromote(roomId, actorId, targetId) {
+    const { room } = this.context(roomId, actorId);
+    this.manager.requireHost(room, actorId);
+    if (room.status !== 'en_cours' || !room.game || room.game.mode !== 'classique') throw new CodenamesError('Aucune manche Classique en cours.');
+    const target = room.members.get(targetId);
+    if (!target || target.kind !== 'joueur' || target.role !== 'agent') throw new CodenamesError('Choisissez un agent.');
+    if (!target.connected) throw new CodenamesError('Ce joueur est déconnecté.');
+    const captain = this.manager.players(room).find((p) => p.team === target.team && p.role === 'capitaine');
+    if (captain && captain.connected) throw new CodenamesError('Le capitaine de cette équipe est présent.');
+    this.promote(room, target, 'hôte');
+  }
+
+  onMemberDisconnected(room, member) {
+    if (member.kind !== 'joueur') return;
+    this.refreshPresence(room);
+  }
+
+  onMemberReconnected(room, member) {
+    if (member.kind !== 'joueur') return;
+    this.refreshPresence(room);
+  }
+
+  /** Départ définitif (bouton « Quitter » ou délai dépassé). */
+  onMemberRemoved(room, member) {
+    if (member.kind !== 'joueur' || room.status !== 'en_cours' || !room.game) return;
+    if (room.game.mode === 'duo') {
+      duo.abort(room.game);
+      room.game.history.push({ type: 'info', text: `${member.name} a quitté la partie.` });
+      this.endRound(room);
+      return;
+    }
+    if (member.role === 'capitaine') this.autoPromote(room, member.team);
+    this.refreshPresence(room);
   }
 
   // ---------- Timer ----------

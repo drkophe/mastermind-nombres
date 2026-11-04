@@ -102,3 +102,29 @@ test('intégration : la clé et le chat d\'équipe ne fuient jamais', async (t) 
   assert.equal((await spec.call('game:guess', { index: 0 })).ok, false);
   assert.equal((await spec.call('chat:send', { channel: 'equipe', text: 'x' })).ok, false);
 });
+
+test('intégration : reconnexion avec le même jeton, même place et même vue', async (t) => {
+  const server = await startServer();
+  t.after(() => { server.io.close(); server.httpServer.close(); });
+  const { r1, r2, all } = await setupGame(server.url);
+  const token = r1.session.token;
+  const playerId = r1.session.playerId;
+  r1.socket.close();
+  await wait(50);
+  const again = connectClient(server.url, 'Rouge1', token);
+  t.after(() => [...all, again].forEach((c) => c.socket.close()));
+  await again.ready;
+  await wait(50);
+  assert.equal(again.session.playerId, playerId);
+  assert.equal(again.state.me.role, 'capitaine');
+  assert.equal(again.state.me.team, 'rouge');
+  assert.equal(again.state.game.key.length, 25, 'le capitaine retrouve sa clé');
+  assert.ok(again.received.some((r) => r.event === 'chat:history'));
+  // Un jeton inconnu donne une nouvelle identité, sans accès à la place de quelqu'un d'autre
+  const intruder = connectClient(server.url, 'Intrus', 'jeton-invente');
+  t.after(() => intruder.socket.close());
+  await intruder.ready;
+  assert.notEqual(intruder.session.playerId, playerId);
+  assert.equal(intruder.state, null);
+  assert.equal(r2.state.game.key, null);
+});

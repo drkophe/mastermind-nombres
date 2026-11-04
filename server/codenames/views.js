@@ -35,7 +35,8 @@ function buildRoomView(room, viewerId, extras = {}) {
     match: { round: room.match.round, totalRounds: room.settings.classic.rounds, score: room.match.score, over: room.match.over },
     game: extras.gameView ? extras.gameView(room, me) : null,
     timer: extras.timerView ? extras.timerView(room) : null,
-    notice: room.notice || null
+    notice: room.notice || null,
+    paused: !!room.paused
   };
 }
 

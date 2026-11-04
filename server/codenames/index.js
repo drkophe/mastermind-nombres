@@ -10,6 +10,8 @@ const { setAvailablePacks } = require('./settings');
 
 const ACTION_BURST = 25; // actions max par fenêtre
 const ACTION_WINDOW_MS = 5000;
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // jeton inutilisé : oublié après 24 h
+const SESSION_SWEEP_MS = 60 * 60 * 1000;
 
 /**
  * Branche Codenames sur le serveur Socket.IO existant, dans le namespace /codenames.
@@ -17,7 +19,7 @@ const ACTION_WINDOW_MS = 5000;
  */
 function registerCodenames(io, options = {}) {
   const nsp = io.of('/codenames');
-  const sessions = new Map(); // token secret -> playerId public
+  const sessions = new Map(); // token secret -> { playerId public, lastSeen }
   const socketsOf = new Map(); // playerId -> Set<socket>
   const dirtyRooms = new Set();
   let listDirty = false;
@@ -32,6 +34,7 @@ function registerCodenames(io, options = {}) {
     onRoomDeleted: (room) => { dirtyRooms.delete(room.id); },
     onMemberRemoved: (room, member) => {
       chatSignatures.delete(member.id);
+      chat.forget(member.id);
       hooks.onMemberRemoved.forEach((fn) => fn(room, member));
       emitTo(member.id, 'room:left', { roomId: room.id });
     },
@@ -44,6 +47,9 @@ function registerCodenames(io, options = {}) {
   const match = new MatchController({ manager, packs, rng: options.rng });
   hooks.gameView = (room, member) => match.gameView(room, member);
   hooks.timerView = (room) => match.timer.view(room);
+  hooks.onMemberDisconnected.push((room, member) => match.onMemberDisconnected(room, member));
+  hooks.onMemberReconnected.push((room, member) => match.onMemberReconnected(room, member));
+  hooks.onMemberRemoved.push((room, member) => match.onMemberRemoved(room, member));
   const chat = new ChatService({ scheduler: manager.scheduler });
   const chatSignatures = new Map(); // playerId -> signature du flux d'équipe déjà envoyé
 
@@ -94,12 +100,16 @@ function registerCodenames(io, options = {}) {
 
   nsp.on('connection', (socket) => {
     const auth = socket.handshake.auth || {};
-    let playerId = typeof auth.token === 'string' ? sessions.get(auth.token) : undefined;
+    const known = typeof auth.token === 'string' ? sessions.get(auth.token) : undefined;
     let token = auth.token;
-    if (!playerId) {
+    let playerId;
+    if (known) {
+      playerId = known.playerId;
+      known.lastSeen = Date.now();
+    } else {
       token = randomId(18);
       playerId = randomId(8);
-      sessions.set(token, playerId);
+      sessions.set(token, { playerId, lastSeen: Date.now() });
     }
     socket.data.playerId = playerId;
     if (!socketsOf.has(playerId)) socketsOf.set(playerId, new Set());
@@ -222,11 +232,14 @@ function registerCodenames(io, options = {}) {
     on('game:pass', () => match.pass(myRoom().id, playerId));
     on('game:next', () => match.next(myRoom().id, playerId));
     on('game:lobby', () => match.toLobby(myRoom().id, playerId));
+    on('game:promote', (p) => match.hostPromote(myRoom().id, playerId, p.playerId));
 
     if (options.extendSocket) options.extendSocket(socket, { on, myRoom, playerId });
 
     socket.on('disconnect', () => {
       const set = socketsOf.get(playerId);
+      const session = sessions.get(token);
+      if (session) session.lastSeen = Date.now();
       if (set) {
         set.delete(socket);
         if (set.size === 0) {
@@ -236,6 +249,16 @@ function registerCodenames(io, options = {}) {
       }
     });
   });
+
+  // Purge des jetons de session inutilisés (joueurs partis depuis longtemps).
+  const sweep = setInterval(() => {
+    const now = Date.now();
+    for (const [token, session] of sessions) {
+      if (socketsOf.has(session.playerId) || manager.roomOf(session.playerId)) continue;
+      if (now - session.lastSeen > SESSION_TTL_MS) sessions.delete(token);
+    }
+  }, SESSION_SWEEP_MS);
+  if (sweep.unref) sweep.unref();
 
   return { nsp, manager, match, chat, hooks, emitTo, viewFor, isOnline: (id) => socketsOf.has(id) };
 }
