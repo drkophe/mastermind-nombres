@@ -109,7 +109,8 @@ body.ds {
 .ds-btn--primary:hover:not(:disabled) { background: #EEDFC2; }
 .ds-btn--square { width: var(--control-h); padding: 0; font-size: 18px; }
 .ds-btn--small { height: 32px; padding: 0 12px; font-size: var(--fs-small); border-radius: 10px; }
-.ds-btn--small.ds-btn--square { width: 32px; font-size: 14px; }
+.ds-btn--small.ds-btn--square { width: 32px; padding: 0; font-size: 14px; }
+.ds-btn svg, .ds-pill svg, .ds-seg__item svg { flex-shrink: 0; }
 .ds-btn--block { width: 100%; }
 .ds-btn--danger:hover:not(:disabled) { border-color: var(--c-danger); color: var(--c-danger); }
 .ds-btn--ghost { border-color: transparent; color: var(--c-text-2); }
@@ -186,6 +187,7 @@ select.ds-field {
 /* ---------- Segmented control ---------- */
 .ds-seg {
   display: inline-flex;
+  align-self: flex-start;
   padding: 3px;
   border: 1px solid var(--c-border);
   border-radius: var(--r-pill);
@@ -212,7 +214,7 @@ select.ds-field {
   font-weight: 600;
 }
 .ds-seg__item:disabled { cursor: not-allowed; opacity: .6; }
-.ds-seg--block { display: flex; }
+.ds-seg--block { display: flex; align-self: stretch; }
 .ds-seg--block .ds-seg__item { flex: 1; justify-content: center; }
 
 /* ---------- Badge (non lus) ---------- */
