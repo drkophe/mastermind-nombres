@@ -7,11 +7,13 @@ import { state, notify, isHost } from '../state.js';
 import { actions } from '../api.js';
 import { renderBoard } from './board.js';
 import { classicCards, classicStatus, classicActionPanel, classicHeader, setRerender } from './classic.js';
+import { duoCards, duoStatus, duoActionPanel, duoHeader, setDuoRerender, DUO_END } from './duo.js';
 import { mountSide } from './side.js';
 import { MOBILE_QUERY } from '../chat-state.js';
 import { TEAM_PLURAL, other } from './common.js';
 
 setRerender(notify);
+setDuoRerender(notify);
 
 const mobile = window.matchMedia(MOBILE_QUERY);
 mobile.addEventListener('change', () => notify());
@@ -48,6 +50,9 @@ function endPanel(room) {
     } else {
       reason = 'La manche a été interrompue.';
     }
+  } else {
+    title = g.result === 'victoire' ? 'Mission réussie' : 'Mission échouée';
+    reason = DUO_END[g.endReason] || '';
   }
   const buttons = isHost()
     ? [
@@ -57,7 +62,7 @@ function endPanel(room) {
     : [el('p', { class: 'ds-small ds-faint', text: 'En attente de l’hôte pour la suite…' })];
   return el('section', { class: 'ds-panel ds-stack cn-end', 'aria-live': 'polite' }, [
     el('span', { class: 'ds-label', text: room.match.over ? 'Partie terminée' : 'Manche terminée' }),
-    el('h2', { class: `cn-end__title${g.winner ? ` cn-end__title--${g.winner}` : ''}`, text: title }),
+    el('h2', { class: `cn-end__title${g.winner ? ` cn-end__title--${g.winner}` : ''}${g.result ? ` cn-end__title--${g.result}` : ''}`, text: title }),
     reason ? el('p', { class: 'ds-small ds-muted cn-end__reason', text: reason }) : null,
     ...buttons
   ]);
@@ -77,8 +82,10 @@ export function renderGame(view, header) {
     renderBoard(layout.board, classicCards(room), `${room.id}:${room.match.round}:${g.words.join(',')}`, 'Plateau de 25 mots');
     action = classicActionPanel(room);
   } else {
-    replace(layout.status, el('p', { class: 'ds-muted', text: 'Mode Duo en cours…' }));
-    clear(layout.board);
+    pills = duoHeader(room);
+    replace(layout.status, duoStatus(room));
+    renderBoard(layout.board, duoCards(room), `${room.id}:${room.match.round}:${g.words.join(',')}`, 'Plateau de 25 mots, vu depuis votre face de la clé');
+    action = duoActionPanel(room);
   }
   replace(header, pills);
   replace(layout.endSlot, room.status === 'terminee' ? endPanel(room) : null);

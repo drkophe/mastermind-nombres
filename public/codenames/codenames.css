@@ -208,6 +208,21 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
 .cn-stepper__ctrl { display: flex; align-items: center; gap: 10px; }
 .cn-stepper__value { min-width: 28px; text-align: center; font-family: var(--font-serif); font-size: 30px; line-height: 1; }
 
+/* ---------- Duo ---------- */
+.cn-statusline__keyinfo { display: inline-flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.cn-sudden-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c-red); box-shadow: 0 0 0 4px rgba(240, 118, 107, .2); }
+.cn-tokens-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--c-border); }
+.cn-tokens { display: inline-flex; gap: 5px; flex-wrap: wrap; }
+.cn-token { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--c-accent); opacity: .35; }
+.cn-token.is-on { background: var(--c-accent); opacity: 1; }
+.cn-duo-hint { margin: 0; }
+.cn-action--sudden { border-color: rgba(240, 118, 107, .55); }
+.cn-pill-alert { border-color: var(--c-red); color: var(--c-red); }
+.cn-end__title--victoire { color: var(--c-green); }
+.cn-end__title--defaite { color: var(--c-text); }
+.cn-card__badge { border-style: dashed; }
+.cn-card.rev .cn-card__badge { border-style: solid; }
+
 /* ---------- Fin de manche ---------- */
 .cn-end { border-color: rgba(230, 211, 174, .45); }
 .cn-end__title { margin: 0; font-family: var(--font-serif); font-weight: 400; font-size: 38px; line-height: 1.05; }
