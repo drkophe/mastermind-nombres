@@ -13,7 +13,7 @@ const shared = {
 module.exports = [
   {
     // Nouveau code client (design system, accueil, Codenames) : modules ES navigateur.
-    files: ['public/assets/**/*.js', 'public/codenames/**/*.js', 'public/home/**/*.js'],
+    files: ['public/assets/**/*.js', 'public/codenames/**/*.{js,mjs}', 'public/home/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',

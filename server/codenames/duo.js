@@ -30,6 +30,9 @@ function createDuoGame({ words, keys, tokens = 9, suddenDeath = true, firstGiver
     phase: 'indice', // indice | devinette | mort-subite | fin
     clue: null,
     history: [],
+    // Journal public des révélations : qui a deviné, pour quel indice, avec quel résultat
+    // (jugé sur la face du donneur). Ne contient rien que les joueurs ne voient déjà.
+    reveals: [],
     result: null, // victoire | defaite
     endReason: null, // agents | assassin | temps | mort-subite | abandon
     assassinIndex: null,
@@ -80,7 +83,8 @@ function giveClue(game, side, rawWord, rawCount) {
     count: clue.count,
     unlimited: clue.unlimited,
     display: displayCount(clue),
-    guessesMade: 0
+    guessesMade: 0,
+    agentsFound: 0
   };
   game.phase = 'devinette';
   game.history.push({ type: 'indice', side, word: clue.word, count: game.clue.display, turn: game.turnNumber });
@@ -105,6 +109,20 @@ function endTurn(game, reason) {
   game.phase = 'indice';
 }
 
+const RESULT = { agent: 'agent', neutre: 'passant', assassin: 'assassin' };
+
+function logReveal(game, { index, guesser, giver, color, suddenDeath }) {
+  game.reveals.push({
+    index,
+    guesser,
+    giver,
+    result: RESULT[color],
+    turn: suddenDeath ? null : game.turnNumber,
+    clue: !suddenDeath && game.clue ? { word: game.clue.word, count: game.clue.display } : null,
+    suddenDeath: !!suddenDeath
+  });
+}
+
 function checkIndex(game, index) {
   if (!Number.isInteger(index) || index < 0 || index >= 25) throw new CodenamesError('Carte invalide.');
   if (game.found[index]) throw new CodenamesError('Cet agent a déjà été trouvé.');
@@ -124,6 +142,7 @@ function guess(game, side, index) {
     const judge = otherSide(side);
     const color = game.keys[judge][index];
     game.history.push({ type: 'carte', side: judge, guesser: side, index, word: game.words[index], color, suddenDeath: true });
+    logReveal(game, { index, guesser: side, giver: judge, color, suddenDeath: true });
     if (color === 'agent') {
       game.found[index] = true;
       if (foundCount(game) === game.agentsTotal) finish(game, 'victoire', 'agents');
@@ -144,9 +163,11 @@ function guess(game, side, index) {
   const color = game.keys[giver][index];
   game.clue.guessesMade++;
   game.history.push({ type: 'carte', side: giver, guesser: side, index, word: game.words[index], color, turn: game.turnNumber });
+  logReveal(game, { index, guesser: side, giver, color, suddenDeath: false });
 
   if (color === 'agent') {
     game.found[index] = true;
+    game.clue.agentsFound++;
     if (foundCount(game) === game.agentsTotal) {
       finish(game, 'victoire', 'agents');
     } else if (agentsLeft(game, giver) === 0) {

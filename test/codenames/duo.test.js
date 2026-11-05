@@ -205,3 +205,26 @@ test('Duo : nombre de jetons et mort subite paramétrables, timer par tour', () 
   assert.equal(room.status, 'terminee');
   assert.equal(room.game.endReason, 'temps');
 });
+
+test('journal des révélations : qui, pour qui, résultat, indice', () => {
+  const g = makeGame();
+  duo.giveClue(g, 'A', 'indice', 2);
+  const agent = indexes(g.keys.A, 'agent')[0];
+  duo.guess(g, 'B', agent);
+  assert.equal(g.clue.agentsFound, 1);
+  const neutral = indexes(g.keys.A, 'neutre').find((i) => !g.found[i]);
+  duo.guess(g, 'B', neutral);
+  assert.deepEqual(g.reveals.map((r) => [r.index, r.guesser, r.giver, r.result, r.clue.word]), [
+    [agent, 'B', 'A', 'agent', 'indice'],
+    [neutral, 'B', 'A', 'passant', 'indice']
+  ]);
+});
+
+test('journal des révélations : mort subite jugée sur la face du partenaire', () => {
+  const g = makeGame({ tokens: 1 });
+  duo.timeout(g);
+  const ok = indexes(g.keys.B, 'agent')[0];
+  duo.guess(g, 'A', ok);
+  const r = g.reveals.at(-1);
+  assert.deepEqual([r.guesser, r.giver, r.result, r.suddenDeath, r.clue], ['A', 'B', 'agent', true, null]);
+});
