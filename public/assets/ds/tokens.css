@@ -1,0 +1,131 @@
+/*
+ * Design tokens — Jeux Multijoueurs
+ * Thème sombre éditorial : accent doré, titres serif (Instrument Serif), UI sans-serif (Inter).
+ * Inclure ce fichier puis components.css. Ne touche à rien tant qu'une page ne l'inclut pas.
+ */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/inter-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/assets/fonts/inter-latin-500-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/assets/fonts/inter-latin-600-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/instrument-serif-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/fonts/instrument-serif-latin-400-italic.woff2') format('woff2');
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --c-bg: #0B0B0D;
+  --c-surface: #131316;
+  --c-surface-hover: #17171B;
+  --c-surface-msg: #1B1B1F;
+  --c-surface-selected: #1D1B16;
+  --c-border: #26262B;
+  --c-divider: #1C1C20;
+
+  /* Texte */
+  --c-text: #F4F2EE;
+  --c-text-2: #A1A1AA;
+  --c-text-3: #8A8A94;
+
+  /* Accent */
+  --c-accent: #E6D3AE;
+  --c-on-accent: #0B0B0D;
+  --c-accent-glow: rgba(230, 211, 174, .16);
+  --c-live: #7FD1A0;
+
+  /* Équipes et cartes */
+  --c-red: #F0766B;
+  --c-red-bg: rgba(240, 118, 107, .14);
+  --c-red-revealed: #B8433A;
+  --c-blue: #6FA8FF;
+  --c-blue-bg: rgba(111, 168, 255, .14);
+  --c-blue-revealed: #2A62C4;
+  --c-neutral-bg: #1A1A1D;
+  --c-neutral-border: #3A3A40;
+  --c-neutral-text: #B4B4BC;
+  --c-neutral-revealed: #CDBF9F;
+  --c-neutral-revealed-text: #1A1A1D;
+  --c-assassin-bg: #000;
+  --c-assassin-border: #F4F2EE;
+  /* Duo (agents verts) — dérivé de l'indicateur « en direct » pour rester dans la palette */
+  --c-green: #7FD1A0;
+  --c-green-bg: rgba(127, 209, 160, .14);
+  --c-green-revealed: #277A4D;
+
+  --c-danger: #F0766B;
+
+  /* Typographie */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --fs-hero: clamp(40px, 4.4vw, 64px);
+  --fs-game-title: 30px;
+  --fs-page-title: 34px;
+  --fs-word: clamp(12px, 1.05vw, 15px);
+  --fs-body: 14px;
+  --fs-small: 13px;
+  --fs-label: 12px;
+  --ls-label: .1em;
+  --ls-word: .09em;
+
+  /* Rayons */
+  --r-panel: 20px;
+  --r-word: 14px;
+  --r-control: 12px;
+  --r-pill: 999px;
+
+  /* Mise en page */
+  --container-max: 1600px;
+  --gutter: clamp(20px, 4vw, 64px);
+  --control-h: 44px;
+
+  /* Mouvement */
+  --t-fast: .2s;
+  --t-base: .25s;
+  --ease: ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0s;
+    --t-base: 0s;
+  }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

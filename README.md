@@ -203,3 +203,23 @@ npm run build-wordlist -- --input chemin/vers/Lexique383.tsv
 
 La liste de mots et sa licence (Lexique 3.83, CC BY-SA 4.0) sont décrites dans
 `data/codenames/ATTRIBUTION.md`.
+
+---
+
+# 🎨 Design system (accueil et Codenames)
+
+Thème sombre éditorial : accent doré, titres en Instrument Serif, interface en Inter.
+Les autres jeux n'ont pas encore migré : ils ne chargent pas ces fichiers et restent inchangés.
+
+| Fichier | Rôle |
+| --- | --- |
+| `public/assets/ds/tokens.css` | Variables (couleurs, typo, rayons, durées), polices auto-hébergées, `prefers-reduced-motion` |
+| `public/assets/ds/components.css` | Composants préfixés `.ds-` : Button, Field, Panel, Pill, SegmentedControl, GameCard, Chat, Banner, Toast, Timer… |
+| `public/assets/ds/dom.js` | `el()` (construction du DOM sans `innerHTML`), icônes SVG à trait fin, toasts |
+| `public/assets/fonts/` | Inter 400/500/600 et Instrument Serif (OFL, licences incluses) |
+| `data/games.js` | Registre des jeux : routes Express + cartes de l'accueil |
+| `server/home.js`, `server/views/home.html` | Accueil rendu côté serveur ; `GET /api/live` pour les joueurs en ligne |
+| `public/codenames/` | Client Codenames en modules ES (sans build) |
+
+Pour migrer un jeu : ajouter `class="ds"` sur `<body>`, charger `tokens.css` puis
+`components.css`, et remplacer ses styles par les composants `.ds-*`.

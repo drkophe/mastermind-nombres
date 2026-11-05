@@ -4,6 +4,8 @@ const socketIo = require('socket.io');
 const path = require('path');
 const { onePieceCharacters } = require('./data/onePieceCharacters');
 const { registerCodenames } = require('./server/codenames');
+const { GAMES } = require('./data/games');
+const { renderHome } = require('./server/home');
 
 const app = express();
 const server = http.createServer(app);
@@ -15,7 +17,7 @@ const io = socketIo(server, {
 });
 
 // Servir les fichiers statiques
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { index: false, redirect: false }));
 
 // ==================== QUESTIONS QUIZ ERP/PPR ====================
 const quizQuestions = [
@@ -4239,39 +4241,50 @@ io.on('connection', (socket) => {
 });
 
 // ==================== CODENAMES (namespace /codenames, module séparé) ====================
-registerCodenames(io);
+const codenames = registerCodenames(io);
 
-// ==================== ROUTES ====================
+// ==================== ROUTES (générées depuis data/games.js) ====================
+// Données réelles affichées sur les cartes de l'accueil.
+const homeContext = {
+  mastermindMaxAttempts: mastermindState.maxAttempts,
+  quizQuestions: quizQuestions.length,
+  quizLevels: new Set(quizQuestions.map(q => q.difficulty)).size,
+  penduCategories: Object.keys(penduWords).length,
+  onePieceCharacters: onePieceCharacters.length,
+  loupRoles: Object.keys(ROLES).length,
+  le10000Target: le10000State.gameSettings.targetScore
+};
+const homePage = renderHome(GAMES, homeContext);
+
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.type('html').send(homePage);
 });
 
-app.get('/mastermind', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'mastermind.html'));
+GAMES.forEach(game => {
+  app.get(game.route, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', game.file));
+  });
 });
 
-app.get('/quiz', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'quiz.html'));
-});
+// Nombre de joueurs connectés par jeu (lecture seule des états en mémoire).
+function liveStats() {
+  const count = state => Object.keys(state.players || {}).length;
+  const games = {
+    mastermind: { players: count(mastermindState) },
+    quiz: { players: count(quizState) },
+    le10000: { players: count(le10000State) },
+    pendu: { players: count(penduState) },
+    'loup-garou': { players: count(loupGarouState) },
+    'quatre-images': { players: count(quatreImagesState) },
+    codenames: codenames.liveStats()
+  };
+  const totalPlayers = Object.values(games).reduce((sum, g) => sum + g.players, 0);
+  return { totalPlayers, games };
+}
 
-app.get('/le10000', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'le10000.html'));
-});
-
-app.get('/pendu', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'pendu.html'));
-});
-
-app.get('/loup-garou', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'loup-garou.html'));
-});
-
-app.get('/quatre-images', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'quatre-images.html'));
-});
-
-app.get('/codenames', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'codenames.html'));
+app.get('/api/live', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(liveStats());
 });
 
 const PORT = process.env.PORT || 3000;
