@@ -20,6 +20,16 @@ function connect() {
   state.socket = socket;
 
   socket.on('session', (data) => {
+    // Nouvelle identité alors qu'on était dans un salon : le serveur a redémarré
+    // (tout est en mémoire), la partie n'existe plus.
+    if (state.playerId && data.playerId !== state.playerId && state.room) {
+      state.room = null;
+      resetChat();
+      const url = new URL(location.href);
+      url.searchParams.delete('salon');
+      history.replaceState(null, '', url);
+      toast('Le serveur a redémarré : la partie en cours a été perdue.', 'error', 7000);
+    }
     storage.set('cn-token', data.token);
     socket.auth = { token: data.token };
     state.playerId = data.playerId;
@@ -38,6 +48,7 @@ function connect() {
   });
 
   socket.on('room:state', (view) => {
+    if (view.timer) view.timer.receivedAt = Date.now();
     const entering = !state.room || state.room.id !== view.id;
     state.room = view;
     if (entering) onEnterRoom(view);

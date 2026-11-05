@@ -267,13 +267,58 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
 body.cn-drawer-open { overflow: hidden; }
 body[data-view="rooms"] .cn-fab { display: none; }
 
-/* Desktop : le plateau occupe la hauteur visible, la colonne latérale défile à part */
-@media (min-width: 701px) {
-  .cn-game { align-items: flex-start; }
-  .cn-game .cn-main { height: calc(100dvh - 116px); min-height: 520px; position: sticky; top: 12px; }
-  .cn-game .cn-side { position: sticky; top: 12px; height: calc(100dvh - 116px); min-height: 520px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-bottom: 2px; }
+/* Desktop : la page de partie tient dans l'écran ; le plateau prend la place restante
+   (même si un bandeau s'affiche), la colonne latérale défile à part. */
+@media (min-width: 701px) and (min-height: 640px) {
+  body[data-view="game"] .ds-container { height: 100dvh; min-height: 0; }
+  body[data-view="game"] .cn-view { min-height: 0; }
+  .cn-game { flex: 1; min-height: 0; flex-wrap: nowrap; }
+  .cn-game .cn-main { min-height: 0; }
+  .cn-game .cn-board { min-height: 0; }
+  .cn-game .cn-side { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-bottom: 2px; }
   .cn-game .cn-chat { min-height: 300px; max-height: none; }
 }
+@media (min-width: 701px) and (max-width: 1000px) {
+  .cn-game { flex-wrap: wrap; }
+  body[data-view="game"] .ds-container { height: auto; min-height: 100vh; }
+  .cn-game .cn-board { min-height: 440px; }
+  .cn-game .cn-side { max-width: none; overflow: visible; }
+}
+
+/* ---------- Timer, bandeaux, historique, définitions ---------- */
+.cn-timer-slot:empty, .cn-notices:empty { display: none; }
+.cn-timer { gap: 14px; }
+.cn-notice { align-items: center; }
+.cn-notice__icon { width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center; border: 1px solid currentColor; flex-shrink: 0; font-size: 13px; }
+.cn-notice__body { display: flex; flex-direction: column; gap: 4px; }
+.cn-notice__tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+
+.cn-history > summary { min-height: 24px; }
+.cn-history__list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; font-size: var(--fs-small); }
+.cn-history__empty { margin: 12px 0 0; }
+.cn-hist { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--c-text-2); line-height: 1.4; }
+.cn-hist--clue { color: var(--c-text); margin-top: 6px; }
+.cn-hist--clue:first-child { margin-top: 0; }
+.cn-hist__clue { font-family: var(--font-serif); font-size: 20px; line-height: 1; text-transform: uppercase; letter-spacing: .03em; margin-left: auto; color: var(--c-accent); }
+.cn-hist--end, .cn-hist--info { color: var(--c-text-3); font-size: var(--fs-label); padding-left: 17px; }
+.cn-hist svg { color: var(--c-accent); }
+
+.cn-def { border-color: rgba(230, 211, 174, .45); outline: none; }
+.cn-def__word { margin: 0; font-family: var(--font-serif); font-weight: 400; font-size: 30px; line-height: 1; text-transform: capitalize; }
+.cn-def__list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.5; }
+.cn-def__attribution { margin: 0; padding-top: 10px; border-top: 1px solid var(--c-border); font-size: var(--fs-label); color: var(--c-text-3); }
+.cn-def a, .cn-def__link { color: var(--c-accent); }
+
+button.cn-card.is-definable:hover { transform: translateY(-2px); border-color: var(--c-accent); }
+
+.cn-end__score { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--c-border); border-bottom: 1px solid var(--c-border); }
+.cn-end__team { display: inline-flex; align-items: baseline; gap: 8px; font-size: var(--fs-small); color: var(--c-text-2); }
+.cn-end__team b { font-family: var(--font-serif); font-weight: 400; font-size: 34px; line-height: 1; }
+.cn-end__team--rouge b { color: var(--c-red); }
+.cn-end__team--bleu b { color: var(--c-blue); }
+.cn-end__round { flex-basis: 100%; }
+.cn-end__hint { margin: 0; display: flex; align-items: center; gap: 8px; }
+.cn-end__hint svg { color: var(--c-accent); }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {

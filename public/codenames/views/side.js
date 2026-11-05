@@ -196,8 +196,8 @@ export function mountSide(host, options = {}) {
   renderMessages();
 
   const nodes = [];
+  (options.extra || []).forEach((n) => { if (n) nodes.push(n); });
   if (options.context === 'game') nodes.push(rosterPanel());
-  (options.extra || []).forEach((n) => nodes.push(n));
 
   // Seule la zone « extra » est remplacée : le chat n'est jamais réinséré inutilement
   // (sinon le défilement des messages serait perdu).
