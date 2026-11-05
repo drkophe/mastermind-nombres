@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Codenames, vue capitaine</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Instrument+Serif:ital@0;1&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0B0B0D}
+*{box-sizing:border-box}
+button,input{font-family:inherit}
+::placeholder{color:#8A8A94}
+.board{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:repeat(5,minmax(0,1fr));gap:12px;flex:1;min-height:440px}
+.card{position:relative;display:flex;align-items:center;justify-content:center;padding:12px 10px;border-radius:14px;border:1px solid #26262B;background:#131316;color:#F4F2EE;font-weight:600;font-size:clamp(12px,1.05vw,15px);line-height:1.2;letter-spacing:.09em;text-transform:uppercase;text-align:center;cursor:pointer;transition:transform .2s ease,border-color .2s ease,opacity .2s ease}
+.card:hover{transform:translateY(-2px);border-color:#E6D3AE}
+.card:focus-visible,.btn:focus-visible,.field:focus-visible,.seg a:focus-visible{outline:2px solid #E6D3AE;outline-offset:2px}
+.mk{position:absolute;top:12px;left:12px}
+.k-r{background:rgba(240,118,107,.14);border-color:#F0766B}
+.k-b{background:rgba(111,168,255,.14);border-color:#6FA8FF}
+.k-n{background:#1A1A1D;border-color:#3A3A40;color:#B4B4BC}
+.k-a{background:#000;border-color:#F4F2EE}
+.k-r .mk{width:9px;height:9px;border-radius:50%;background:#F0766B}
+.k-b .mk{width:9px;height:9px;background:#6FA8FF;transform:rotate(45deg)}
+.k-n .mk{width:10px;height:2px;top:16px;background:#8A8A94}
+.k-a .mk::before{content:'×';position:absolute;top:-11px;left:-3px;font-size:22px;line-height:1;color:#F4F2EE}
+.done{opacity:.4;text-decoration:line-through}
+.btn{height:44px;border-radius:12px;border:1px solid #26262B;background:transparent;color:#F4F2EE;font-weight:500;font-size:14px;cursor:pointer;padding:0 18px;transition:border-color .2s ease}
+.btn:hover{border-color:#E6D3AE}
+.btn.pri{background:#E6D3AE;color:#0B0B0D;border-color:#E6D3AE;font-weight:600}
+.btn.sq{width:44px;padding:0;font-size:18px}
+.field{height:44px;width:100%;border-radius:12px;border:1px solid #26262B;background:#0B0B0D;color:#F4F2EE;padding:0 14px;font-size:14px}
+.panel{background:#131316;border:1px solid #26262B;border-radius:20px;padding:20px}
+.pill{display:flex;align-items:center;gap:10px;padding:7px 14px;border:1px solid #26262B;border-radius:999px;font-size:13px;color:#A1A1AA}
+.pill b{font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:22px;line-height:1;color:#F4F2EE}
+.seg{display:flex;padding:3px;border:1px solid #26262B;border-radius:999px;font-size:13px}
+.seg a{padding:7px 14px;border-radius:999px;color:#A1A1AA;text-decoration:none}
+.seg a.on{background:#E6D3AE;color:#0B0B0D;font-weight:600}
+.back{display:flex;align-items:center;gap:8px;color:#A1A1AA;text-decoration:none;font-size:13px}
+.back:hover{color:#F4F2EE}
+.lbl{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8A8A94}
+.msgs{flex:1;min-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.45}
+@media (max-width:700px){.board{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:68px}}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;gap:20px;padding:0 clamp(20px,4vw,64px) 24px;max-width:1600px;margin:0 auto;background:#0B0B0D;color:#F4F2EE;font-family:'Inter',system-ui,sans-serif">
+
+  <header style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px 24px;padding-top:20px">
+    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+      <a class="back" href="Main.dc.html"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 7H2M6 3L2 7l4 4"></path></svg>Tous les jeux</a>
+      <h1 style="margin:0;font-family:'Instrument Serif',Georgia,serif;font-weight:400;font-size:34px;line-height:1">Codenames</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="seg" role="navigation" aria-label="Changer de vue">
+        <a class="on" href="Spymaster.dc.html" aria-current="page">Capitaine</a>
+        <a href="Operatives.dc.html">Agents</a>
+      </div>
+      <div class="pill"><span style="width:9px;height:9px;border-radius:50%;background:#F0766B"></span>Rouges<b>{{redLeft}}</b></div>
+      <div class="pill"><span style="width:9px;height:9px;background:#6FA8FF;transform:rotate(45deg)"></span>Bleus<b>{{blueLeft}}</b></div>
+    </div>
+  </header>
+
+  <div style="flex:1;display:flex;flex-wrap:wrap;gap:24px;min-height:0">
+
+    <section style="flex:999 1 640px;min-width:0;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:#A1A1AA">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#E6D3AE" stroke-width="1.5" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="2"></rect><path d="M5 7V5a3 3 0 0 1 6 0v2"></path></svg>
+          Clé secrète : ne montrez pas cet écran à vos agents
+        </span>
+        <span style="display:flex;gap:18px;font-size:12px;color:#A1A1AA">
+          <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;border-radius:50%;background:#F0766B"></span>Rouge</span>
+          <span style="display:flex;align-items:center;gap:7px"><span style="width:9px;height:9px;background:#6FA8FF;transform:rotate(45deg)"></span>Bleu</span>
+          <span style="display:flex;align-items:center;gap:7px"><span style="width:10px;height:2px;background:#8A8A94"></span>Neutre</span>
+          <span style="display:flex;align-items:center;gap:7px"><span style="font-size:16px;line-height:1;color:#F4F2EE">×</span>Assassin</span>
+        </span>
+      </div>
+      <div class="board">
+        <sc-for list="{{cards}}" as="c" hint-placeholder-count="25">
+          <button class="{{c.cls}}" onClick="{{c.pick}}" aria-label="{{c.label}}" aria-pressed="{{c.done}}"><span class="mk"></span>{{c.word}}</button>
+        </sc-for>
+      </div>
+    </section>
+
+    <aside style="flex:1 1 320px;max-width:380px;display:flex;flex-direction:column;gap:16px;min-width:0">
+
+      <form class="panel" onSubmit="{{sendClue}}" style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span class="lbl">Votre indice</span>
+          <span style="font-size:12px;color:#F0766B">Équipe rouge</span>
+        </div>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:#A1A1AA">Un seul mot
+          <input class="field" type="text" value="{{clueWord}}" onChange="{{onClueWord}}" placeholder="Votre indice">
+        </label>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <span style="font-size:13px;color:#A1A1AA">Nombre de cartes</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button type="button" class="btn sq" onClick="{{numDown}}" aria-label="Diminuer le nombre">−</button>
+            <span style="min-width:24px;text-align:center;font-family:'Instrument Serif',Georgia,serif;font-size:30px;line-height:1">{{clueNum}}</span>
+            <button type="button" class="btn sq" onClick="{{numUp}}" aria-label="Augmenter le nombre">+</button>
+          </div>
+        </div>
+        <button type="submit" class="btn pri">Donner l’indice</button>
+        <sc-if value="{{hasClue}}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-top:14px;border-top:1px solid #26262B">
+            <span class="lbl">Indice envoyé</span>
+            <span style="font-family:'Instrument Serif',Georgia,serif;font-size:28px;line-height:1;text-transform:uppercase;letter-spacing:.04em">{{sentWord}} <span style="color:#E6D3AE">{{sentNum}}</span></span>
+          </div>
+        </sc-if>
+      </form>
+
+      <section class="panel" style="flex:1;min-height:240px;display:flex;flex-direction:column;gap:12px">
+        <span class="lbl">Chat d’équipe</span>
+        <div class="msgs" aria-live="polite">
+          <sc-if value="{{noMsgs}}" hint-placeholder-val="{{ true }}">
+            <p style="margin:auto;font-size:13px;color:#8A8A94;text-align:center">Aucun message pour l’instant.</p>
+          </sc-if>
+          <sc-for list="{{msgs}}" as="m" hint-placeholder-count="0">
+            <div style="padding:9px 12px;border-radius:12px;background:#1B1B1F;color:#F4F2EE"><span style="color:#E6D3AE;font-weight:500">Vous</span> · {{m.text}}</div>
+          </sc-for>
+        </div>
+        <form onSubmit="{{sendMsg}}" style="display:flex;gap:8px">
+          <input class="field" type="text" value="{{draft}}" onChange="{{onDraft}}" placeholder="Écrire à l’équipe" aria-label="Message à l’équipe">
+          <button type="submit" class="btn sq" aria-label="Envoyer le message"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 8h12M9 3l5 5-5 5"></path></svg></button>
+        </form>
+      </section>
+
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.state = { rev: {}, clueWord: '', clueNum: 2, sentWord: '', sentNum: 0, draft: '', msgs: [] };
+}
+renderVals() {
+const WORDS = ['Lune','Château','Pirate','Piano','Glace','Serpent','Avion','Banque','Forêt','Couronne','Miroir','Orage','Plume','Sphinx','Tigre','Navire','Horloge','Fantôme','Cirque','Volcan','Aiguille','Pont','Désert','Satellite','Masque'];
+const KEY = 'rbnrbarnbrbrnbrrnbrnbrbnn'.split('');
+const NAMES = { r: 'Rouge', b: 'Bleu', n: 'Neutre', a: 'Assassin' };
+const s = this.state;
+let redLeft = 0, blueLeft = 0;
+const cards = WORDS.map((w, i) => {
+const k = KEY[i];
+const done = !!s.rev[i];
+if (k === 'r' && !done) redLeft++;
+if (k === 'b' && !done) blueLeft++;
+return {
+word: w,
+done: done,
+cls: 'card k-' + k + (done ? ' done' : ''),
+label: w + ', carte ' + NAMES[k] + (done ? ', déjà devinée' : ''),
+pick: () => this.setState({ rev: Object.assign({}, this.state.rev, { [i]: !this.state.rev[i] }) })
+};
+});
+return {
+cards: cards,
+redLeft: redLeft,
+blueLeft: blueLeft,
+clueWord: s.clueWord,
+clueNum: s.clueNum,
+hasClue: s.sentWord !== '',
+sentWord: s.sentWord,
+sentNum: s.sentNum,
+onClueWord: (e) => this.setState({ clueWord: e.target.value }),
+numDown: () => this.setState({ clueNum: Math.max(0, this.state.clueNum - 1) }),
+numUp: () => this.setState({ clueNum: Math.min(9, this.state.clueNum + 1) }),
+sendClue: (e) => {
+if (e && e.preventDefault) e.preventDefault();
+const w = this.state.clueWord.trim();
+if (w) this.setState({ sentWord: w, sentNum: this.state.clueNum });
+},
+noMsgs: s.msgs.length === 0,
+msgs: s.msgs,
+draft: s.draft,
+onDraft: (e) => this.setState({ draft: e.target.value }),
+sendMsg: (e) => {
+if (e && e.preventDefault) e.preventDefault();
+const t = this.state.draft.trim();
+if (t) this.setState({ msgs: this.state.msgs.concat([{ text: t }]), draft: '' });
+}
+};
+}
+}
+</script>
+</body>
+</html>
