@@ -124,4 +124,7 @@ test('Fin de partie : les deux faces sont projetées', () => {
 test('Légendes : une par vue, avec les symboles utilisés', () => {
   assert.deepEqual(P.legendFor('cle', 'A').map((x) => x[0]), ['A', 'passant', 'assassin', 'check', 'retired']);
   assert.ok(!P.legendFor('plateau', 'A').some((x) => x[0] === 'assassin'), 'pas d’assassin dans la légende du plateau');
+  assert.ok(!P.legendFor('cle', 'A').some((x) => x[0] === 'common'), 'pas de « commun » sans carte commune');
+  const withCommon = project('A', 'cle', [R(2, 'A', 'B', 'agent')]);
+  assert.ok(P.legendFor('cle', 'A', withCommon).some((x) => x[0] === 'common'));
 });

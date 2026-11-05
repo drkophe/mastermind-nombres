@@ -140,15 +140,20 @@ export function projectDuoBoard(p) {
   });
 }
 
-/** Légende : symboles réellement utilisés dans une vue. */
-export function legendFor(view, viewer) {
+/**
+ * Légende : symboles réellement utilisés dans une vue.
+ * « Agent commun » n'apparaît que si une carte commune est affichée (cards = projection).
+ */
+export function legendFor(view, viewer, cards = []) {
+  const hasCommon = cards.some((c) => c.kind === 'common');
+  const common = hasCommon ? [['common', 'Agent commun']] : [];
   if (!viewer) {
     return [['A', 'Agent de A trouvé'], ['B', 'Agent de B trouvé'], ['passant', 'Passant'], ['retired', 'Hors jeu']];
   }
   if (view === 'cle') {
-    return [[viewer, 'Mes agents'], ['passant', 'Passant'], ['assassin', 'Assassin'], ['check', 'Trouvé'], ['retired', 'Hors jeu']];
+    return [[viewer, 'Mes agents'], ['passant', 'Passant'], ['assassin', 'Assassin'], ['check', 'Trouvé'], ...common, ['retired', 'Hors jeu']];
   }
-  return [[otherSide(viewer), 'Agent trouvé'], ['common', 'Agent commun'], ['passant', 'Erreur'], ['retired', 'Hors jeu']];
+  return [[otherSide(viewer), 'Agent trouvé'], ...common, ['passant', 'Erreur'], ['retired', 'Hors jeu']];
 }
 
 export const PLAYER_LABEL = PLAYER_WORD;

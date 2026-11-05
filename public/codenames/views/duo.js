@@ -127,6 +127,8 @@ function toBoardCard(pc, viewer) {
   return card;
 }
 
+let lastProjection = [];
+
 export function duoCards(room) {
   const g = room.game;
   const role = duoRole(room);
@@ -153,6 +155,7 @@ export function duoCards(room) {
     canSelect: (i) => selecting && !g.found[i] && !(role.kind === 'devine' && g.bystanders[g.giver][i])
   });
 
+  lastProjection = projected;
   return projected.map((pc, i) => {
     const card = toBoardCard(pc, viewer);
     if (pc.selectable) {
@@ -179,7 +182,7 @@ function legendSwatch(kind) {
 
 function duoLegend(room) {
   const role = duoRole(room);
-  const items = legendFor(duoView(room), role.side || null);
+  const items = legendFor(duoView(room), role.side || null, lastProjection);
   return el('span', { class: 'cn-legend', 'aria-label': 'Légende des symboles' },
     items.map(([kind, text]) => el('span', { class: 'cn-legend__item' }, [legendSwatch(kind), text])));
 }

@@ -7,7 +7,7 @@ import { state, notify, isHost } from '../state.js';
 import { actions } from '../api.js';
 import { renderBoard } from './board.js';
 import { classicCards, classicStatus, classicActionPanel, classicHeader, setRerender } from './classic.js';
-import { duoCards, duoStatus, duoActionPanel, duoHeader, setDuoRerender, DUO_END } from './duo.js';
+import { duoCards, duoStatus, duoActionPanel, duoHeader, setDuoRerender, DUO_END, duoView } from './duo.js';
 import { mountSide } from './side.js';
 import { MOBILE_QUERY } from '../chat-state.js';
 import { TEAM_PLURAL, other } from './common.js';
@@ -118,8 +118,11 @@ export function renderGame(view, header) {
     action = classicActionPanel(room);
   } else {
     pills = duoHeader(room);
+    // Les cartes d'abord : la légende de la ligne de statut dépend de la projection.
+    const cards = duoCards(room);
     replace(layout.status, duoStatus(room));
-    renderBoard(layout.board, duoCards(room), `${room.id}:${room.match.round}:${g.words.join(',')}`, 'Plateau de 25 mots, vu depuis votre face de la clé');
+    renderBoard(layout.board, cards, `${room.id}:${room.match.round}:${g.words.join(',')}`,
+      duoView(room) === 'cle' && g.mySide ? 'Plateau de 25 mots, vue « Ma clé »' : 'Plateau de 25 mots, vue neutre');
     action = duoActionPanel(room);
   }
   // Fin de manche : chaque mot devient cliquable pour afficher sa définition.
