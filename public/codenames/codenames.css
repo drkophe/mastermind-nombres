@@ -430,6 +430,11 @@ button.cn-card.is-definable:hover { transform: translateY(-2px); border-color: v
   .cn-card.k-n .mk { top: 12px; }
   .cn-clue--lg .cn-clue__word { font-size: 38px; }
   .cn-cluebar { padding: 8px 12px; gap: 4px 10px; }
+  /* Duo : ligne de statut compacte (sélecteur de vue d'abord, légende réduite) */
+  .cn-statusline__keyinfo { width: 100%; gap: 6px 10px; }
+  .cn-statusline__keyinfo .cn-lock { display: none; }
+  .cn-statusline__keyinfo #cn-duo-toggle { order: -1; }
+  .cn-statusline__keyinfo .cn-legend { gap: 4px 10px; font-size: 11px; }
   .cn-cluebar__word { font-size: 24px; }
   .cn-cluebar__who { margin-left: 0; }
   .cn-header { gap: 10px; }

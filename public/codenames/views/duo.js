@@ -256,7 +256,9 @@ function legendSwatch(kind) {
 
 function duoLegend(room) {
   const role = duoRole(room);
-  const items = legendFor(duoView(room), role.side || null, lastProjection);
+  const items = legendFor(duoView(room), role.side || null, lastProjection)
+    // Spectateur : pseudos plutôt que « A » / « B »
+    .map(([kind, text]) => (!role.side && (kind === 'A' || kind === 'B') ? [kind, `Agents de ${sideName(kind)} trouvés`] : [kind, text]));
   return el('span', { class: 'cn-legend', 'aria-label': 'Légende des symboles' },
     items.map(([kind, text]) => el('span', { class: 'cn-legend__item' }, [legendSwatch(kind), text])));
 }
@@ -379,7 +381,8 @@ export function duoActionPanel(room) {
 export function duoHeader(room) {
   const g = room.game;
   const role = duoRole(room);
-  const roleText = role.kind === 'indice' ? (g.phase === 'indice' ? 'cherche un indice' : 'a donné l’indice')
+  const roleText = room.status !== 'en_cours' ? 'partie terminée'
+    : role.kind === 'indice' ? (g.phase === 'indice' ? 'cherche un indice' : 'a donné l’indice')
     : role.kind === 'devine' ? (g.phase === 'devinette' ? 'devine' : 'attend l’indice')
       : 'mort subite';
   const rolePill = role.side
