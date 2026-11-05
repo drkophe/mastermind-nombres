@@ -98,6 +98,8 @@ function renderConnection() {
 }
 
 function render() {
+  // Les panneaux sont reconstruits à chaque état : on restaure le focus clavier par id.
+  const focusedId = document.activeElement && document.activeElement !== document.body ? document.activeElement.id : null;
   renderConnection();
   const room = state.room;
   const name = !room ? 'rooms' : room.status === 'attente' ? 'lobby' : 'game';
@@ -114,6 +116,10 @@ function render() {
   else if (name === 'lobby') renderLobby(view, header);
   else renderGame(view, header);
   document.title = room ? `${room.name} — Codenames` : 'Codenames — Jeux Multijoueurs';
+  if (focusedId) {
+    const again = document.getElementById(focusedId);
+    if (again && again !== document.activeElement && !again.disabled) again.focus({ preventScroll: true });
+  }
 }
 
 subscribe(render);
