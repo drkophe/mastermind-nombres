@@ -58,7 +58,8 @@ export function historyPanel(room) {
   const items = g.history.slice().reverse().map((h) => historyItem(h, g.mode)).filter(Boolean);
   const clues = g.history.filter((h) => h.type === 'indice').length;
   const existing = document.getElementById('cn-history');
-  const open = existing ? existing.open : !isDrawerMode();
+  // Duo : replié par défaut pour laisser la place au chat (colonne à la hauteur de l'écran).
+  const open = existing ? existing.open : !isDrawerMode() && g.mode !== 'duo';
   return el('details', { class: 'ds-panel ds-details cn-history', id: 'cn-history', open }, [
     el('summary', { class: 'ds-label' }, [`Historique · ${clues} indice${clues > 1 ? 's' : ''}`]),
     items.length

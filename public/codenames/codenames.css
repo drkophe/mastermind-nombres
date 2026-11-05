@@ -299,6 +299,22 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
 .cn-phase-text { color: var(--c-text); font-weight: 600; }
 .cn-phase-text.is-mine { color: var(--c-accent); }
 
+/* Bandeau « indice en cours » (Duo) */
+.cn-cluebar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px;
+  padding: 10px 16px; border-radius: var(--r-control);
+  border: 1px solid var(--c-border); background: rgba(19, 19, 22, .85);
+}
+.cn-cluebar--A { border-color: rgba(240, 118, 107, .55); }
+.cn-cluebar--B { border-color: rgba(111, 168, 255, .55); }
+.cn-cluebar__word { font-family: var(--font-serif); font-size: 30px; line-height: 1; text-transform: uppercase; letter-spacing: .03em; }
+.cn-cluebar__num { font-family: var(--font-serif); font-size: 26px; line-height: 1; color: var(--c-accent); }
+.cn-cluebar__progress { font-size: var(--fs-small); }
+.cn-cluebar__meter { width: 72px; height: 4px; border-radius: 2px; background: var(--c-border); overflow: hidden; }
+.cn-cluebar__meter > span { display: block; height: 100%; background: var(--c-accent); transform-origin: left center; transition: transform var(--t-base) var(--ease); }
+.cn-cluebar__who { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-small); color: var(--c-text-2); }
+.cn-status-slot { display: flex; flex-direction: column; gap: 10px; }
+
 /* ---------- Fin de manche ---------- */
 .cn-end { border-color: rgba(230, 211, 174, .45); }
 .cn-end__title { margin: 0; font-family: var(--font-serif); font-weight: 400; font-size: 38px; line-height: 1.05; }
@@ -353,7 +369,10 @@ body[data-view="rooms"] .cn-fab { display: none; }
   .cn-game .cn-main { min-height: 0; }
   .cn-game .cn-board { min-height: 0; }
   .cn-game .cn-side { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-bottom: 2px; }
-  .cn-game .cn-chat { min-height: 300px; max-height: none; }
+  /* Le chat prend la place restante de la colonne, avec défilement interne uniquement. */
+  .cn-game .cn-side-extra { flex: 1; min-height: 0; }
+  .cn-game .cn-chat { flex: 1; min-height: 180px; max-height: none; }
+  .cn-game .ds-chat__msgs { min-height: 0; }
 }
 @media (min-width: 701px) and (max-width: 1000px) {
   .cn-game { flex-wrap: wrap; }
@@ -410,6 +429,9 @@ button.cn-card.is-definable:hover { transform: translateY(-2px); border-color: v
   .cn-card .mk { top: 8px; left: 8px; }
   .cn-card.k-n .mk { top: 12px; }
   .cn-clue--lg .cn-clue__word { font-size: 38px; }
+  .cn-cluebar { padding: 8px 12px; gap: 4px 10px; }
+  .cn-cluebar__word { font-size: 24px; }
+  .cn-cluebar__who { margin-left: 0; }
   .cn-header { gap: 10px; }
   .cn-header .ds-header__end { gap: 6px; min-height: 0; }
   .cn-header .ds-pill { padding: 5px 10px; gap: 6px; font-size: 12px; }

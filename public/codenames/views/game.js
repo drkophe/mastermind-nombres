@@ -8,7 +8,7 @@ import { state, notify, isHost } from '../state.js';
 import { actions } from '../api.js';
 import { renderBoard } from './board.js';
 import { classicCards, classicStatus, classicActionPanel, classicHeader, setRerender } from './classic.js';
-import { duoCards, duoStatus, duoActionPanel, duoHeader, setDuoRerender, DUO_END, duoView, duoPhaseInfo } from './duo.js';
+import { duoCards, duoStatus, duoActionPanel, duoHeader, setDuoRerender, DUO_END, duoView, duoPhaseInfo, duoClueBanner } from './duo.js';
 import { mountSide } from './side.js';
 import { MOBILE_QUERY } from '../chat-state.js';
 import { TEAM_PLURAL, other, sideName } from './common.js';
@@ -127,7 +127,7 @@ export function renderGame(view, header) {
     pills = duoHeader(room);
     // Les cartes d'abord : la légende de la ligne de statut dépend de la projection.
     const cards = duoCards(room);
-    replace(layout.status, duoStatus(room));
+    replace(layout.status, [duoStatus(room), duoClueBanner(room)]);
     renderBoard(layout.board, cards, `${room.id}:${room.match.round}:${g.words.join(',')}`,
       duoView(room) === 'cle' && g.mySide ? 'Plateau de 25 mots, vue « Ma clé »' : 'Plateau de 25 mots, vue neutre');
     action = duoActionPanel(room);

@@ -4,7 +4,7 @@
  * Couleurs par joueur : A = rouge (rond), B = bleu (losange).
  * Chaque joueur ne reçoit du serveur que SA face de la clé.
  */
-import { el, ICONS, storage } from '/assets/ds/dom.js';
+import { el, ICONS } from '/assets/ds/dom.js';
 import { state, me } from '../state.js';
 import { actions } from '../api.js';
 import { mark, sideName, segmented } from './common.js';
@@ -63,15 +63,25 @@ export function duoRole(room) {
   return { kind: sudden ? 'mort-subite' : g.giver === g.mySide ? 'indice' : 'devine', side: g.mySide };
 }
 
-/** Vue affichée : préférence locale (mémorisée), « cle » ou « plateau ». */
-export function duoView(_room) {
-  if (state.ui.duoView === undefined) state.ui.duoView = storage.get('cn-duo-vue') === 'plateau' ? 'plateau' : 'cle';
+/**
+ * Vue affichée. Par défaut selon mon rôle dans le tour : je donne l'indice → « Ma clé »
+ * (je vois les validations en direct), je devine → « Plateau ». Un choix manuel est
+ * conservé jusqu'au tour suivant (pas de rebascule automatique pendant le tour).
+ */
+export function duoView(room) {
+  const g = room.game;
+  const role = duoRole(room);
+  if (!role.side) return 'plateau';
+  const turnKey = `${room.id}:${room.match.round}:${g.turnNumber}:${role.kind}`;
+  if (state.ui.duoViewTurn !== turnKey) {
+    state.ui.duoViewTurn = turnKey;
+    state.ui.duoView = role.kind === 'indice' ? 'cle' : 'plateau';
+  }
   return state.ui.duoView;
 }
 
 function setView(view) {
-  state.ui.duoView = view;
-  storage.set('cn-duo-vue', view);
+  state.ui.duoView = view; // valable jusqu'au prochain changement de tour
   rerender();
 }
 
@@ -195,6 +205,44 @@ export function duoCards(room) {
   });
 }
 
+// ---------- Bandeau « indice en cours » ----------
+
+/** Progression de l'indice selon la règle « Fin d'un indice ». */
+export function clueProgress(g) {
+  const c = g.clue;
+  if (!c) return null;
+  const found = c.agentsFound || 0;
+  const plural = (n) => (n > 1 ? 's' : '');
+  if (c.unlimited || c.count === 0 || g.clueEnd === 'illimite') {
+    return { text: `${found} trouvé${plural(found)}`, detail: 'jusqu’à une erreur ou une passe', ratio: null };
+  }
+  if (g.clueEnd === 'bonus') {
+    return { text: `${found}/${c.count} trouvé${plural(found)}`, detail: found >= c.count ? 'essai bonus disponible' : `+ 1 essai bonus`, ratio: Math.min(1, found / c.count) };
+  }
+  return { text: `${found}/${c.count} trouvé${plural(found)}`, detail: 'le tour s’arrête à ' + c.count, ratio: Math.min(1, found / c.count) };
+}
+
+/** Bandeau au-dessus du plateau, visible dans les deux vues et pour tous. */
+export function duoClueBanner(room) {
+  const g = room.game;
+  if (room.status !== 'en_cours' || !g.clue || g.phase !== 'devinette') return null;
+  const guesser = otherSide(g.clue.giver);
+  const role = duoRole(room);
+  const progress = clueProgress(g);
+  const who = role.side === guesser ? 'Vous devinez' : `${sideName(guesser)} devine`;
+  return el('div', { class: `cn-cluebar cn-cluebar--${guesser}`, role: 'status', 'aria-label': `Indice en cours : ${g.clue.word} ${g.clue.display}, ${progress.text}, ${who}` }, [
+    el('span', { class: 'cn-cluebar__label ds-label', text: 'Indice' }),
+    el('span', { class: 'cn-cluebar__word', text: g.clue.word }),
+    el('span', { class: 'cn-cluebar__num', text: g.clue.display }),
+    el('span', { class: 'cn-cluebar__progress' }, [
+      el('strong', { text: progress.text }),
+      el('span', { class: 'ds-faint', text: ` · ${progress.detail}` })
+    ]),
+    progress.ratio !== null ? el('span', { class: 'cn-cluebar__meter', 'aria-hidden': 'true' }, [el('span', { style: `transform: scaleX(${progress.ratio})` })]) : null,
+    el('span', { class: 'cn-cluebar__who' }, [sideMark(guesser), who])
+  ]);
+}
+
 // ---------- Légende et ligne de statut ----------
 
 function legendSwatch(kind) {
@@ -313,7 +361,8 @@ export function duoActionPanel(room) {
   ])];
   if (g.clue) {
     body.push(clueWord(g, 'lg'));
-    body.push(el('span', { class: 'ds-small ds-muted', role: 'status', text: `${g.clue.guessesMade} proposition${g.clue.guessesMade > 1 ? 's' : ''}` }));
+    const progress = clueProgress(g);
+    body.push(el('span', { class: 'ds-small ds-muted', text: `${progress.text} · ${progress.detail}` }));
   } else {
     body.push(el('p', { class: 'cn-waiting', text: `${sideName(g.giver)} cherche un indice…` }));
   }
