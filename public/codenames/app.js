@@ -11,6 +11,8 @@ import { renderLobby } from './views/lobby.js';
 import { renderGame } from './views/game.js';
 import { onChatHistory, onChatMessage, resetChat } from './chat-state.js';
 import { unmountSide } from './views/side.js';
+import { setPhaseTint } from '/assets/ds/phase-tint.js';
+import { duoPhaseInfo } from './views/duo.js';
 
 let currentView = null;
 
@@ -124,10 +126,13 @@ function render() {
     document.body.dataset.view = name;
     currentView = name;
   }
+  if (name !== 'game') setPhaseTint(null);
   if (name === 'rooms') { unmountSide(); renderRooms(view, header); }
   else if (name === 'lobby') renderLobby(view, header);
   else renderGame(view, header);
-  document.title = room ? `${room.name} — Codenames` : 'Codenames — Jeux Multijoueurs';
+  // Onglet : « (À vous) » quand c'est à moi d'agir en Duo.
+  const myTurn = room && room.game && room.game.mode === 'duo' && duoPhaseInfo(room).myTurn;
+  document.title = room ? `${myTurn ? '(À vous) ' : ''}Codenames — ${room.name}` : 'Codenames — Jeux Multijoueurs';
   if (focusedId) {
     const again = document.getElementById(focusedId);
     if (again && again !== document.activeElement && !again.disabled) again.focus({ preventScroll: true });

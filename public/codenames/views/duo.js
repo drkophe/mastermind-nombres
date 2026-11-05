@@ -1,53 +1,98 @@
 /*
- * Mode Duo : plateau vu depuis SA face de la clé (envoyée par le serveur au seul joueur
- * concerné), jetons de temps, alternance des rôles, mort subite.
+ * Mode Duo : vues « Ma clé » (je fais deviner) et « Plateau » (je devine),
+ * construites par la projection pure duo-projection.mjs.
+ * Couleurs par joueur : A = rouge (rond), B = bleu (losange).
+ * Chaque joueur ne reçoit du serveur que SA face de la clé.
  */
-import { el, ICONS, storage } from '/assets/ds/dom.js';
+import { el, ICONS } from '/assets/ds/dom.js';
 import { state, me } from '../state.js';
 import { actions } from '../api.js';
 import { mark, sideName, segmented } from './common.js';
-import { legend } from './classic.js';
 import { clueForm, selectionKeyFor } from './clue-form.js';
+import { projectDuoBoard, legendFor, otherSide } from '../duo-projection.mjs';
 
-const SYMBOL = { agent: '✓', assassin: '×', neutre: '–' };
-const WORD = { agent: 'agent', assassin: 'assassin', neutre: 'passant' };
+export const SIDE_MARK = { A: 'red', B: 'blue' };
+export const SIDE_CLASS = { A: 'own-A', B: 'own-B' };
+const FACE_SYMBOL = { agent: '✓', assassin: '×', neutre: '–' };
 
 let rerender = () => {};
 export function setDuoRerender(fn) { rerender = fn; }
 
+/** Pastille de joueur : couleur + second signal (rond A / losange B). */
+export function sideMark(side) {
+  return mark(SIDE_MARK[side]);
+}
+
+function names() {
+  return { A: sideName('A'), B: sideName('B') };
+}
+
+// ---------- Phase : texte explicite + couleur du dégradé ----------
+
+export const PHASE_COLORS = { indice: '#F5C451', A: '#F0766B', B: '#6FA8FF' };
+
 /**
- * Affichage de SA face de la clé (« Ma clé ») ou du plateau neutre (« Plateau »),
- * comme celui des agents en Classique : pratique pour retrouver ses mots sans
- * confondre les couleurs. Préférence locale, mémorisée dans le navigateur.
+ * Phase du point de vue du joueur : texte (ne repose pas sur la couleur),
+ * couleurs du dégradé (null = pas de dégradé), et « à moi d'agir ».
  */
-function keyVisible() {
-  if (state.ui.duoShowKey === undefined) state.ui.duoShowKey = storage.get('cn-duo-cle') !== 'masquee';
-  return state.ui.duoShowKey;
+export function duoPhaseInfo(room) {
+  const g = room.game;
+  const role = duoRole(room);
+  const me_ = role.side || null;
+  if (room.status !== 'en_cours' || !g) return { text: 'Partie terminée', colors: null, myTurn: false };
+  if (room.paused) return { text: 'Partie en pause', colors: null, myTurn: false };
+  if (g.phase === 'mort-subite') {
+    return { text: me_ ? 'Mort subite : à vous deux de deviner' : 'Mort subite : les deux joueurs devinent', colors: [PHASE_COLORS.A, PHASE_COLORS.B], myTurn: !!me_ };
+  }
+  if (g.phase === 'indice') {
+    const mine = me_ === g.giver;
+    return { text: mine ? 'Vous cherchez un indice' : `${sideName(g.giver)} cherche un indice`, colors: [PHASE_COLORS.indice], myTurn: mine };
+  }
+  const guesser = otherSide(g.giver);
+  const mine = me_ === guesser;
+  return { text: mine ? 'À vous de deviner' : `${sideName(guesser)} devine`, colors: [PHASE_COLORS[guesser]], myTurn: mine };
 }
 
-function setKeyVisible(visible) {
-  state.ui.duoShowKey = visible;
-  storage.set('cn-duo-cle', visible ? 'visible' : 'masquee');
-  rerender();
-}
+// ---------- Rôle et vue ----------
 
-function keyToggle() {
-  const visible = keyVisible();
-  return segmented({
-    label: 'Affichage du plateau',
-    id: 'cn-duo-toggle',
-    options: [['cle', 'Ma clé'], ['plateau', 'Plateau']],
-    value: visible ? 'cle' : 'plateau',
-    onChange: (v) => setKeyVisible(v === 'cle')
-  });
-}
-
-function roleOf(room) {
+export function duoRole(room) {
   const m = me();
   const g = room.game;
   if (!m || m.kind !== 'joueur' || !g.mySide) return { kind: 'spectateur' };
   const sudden = g.phase === 'mort-subite';
   return { kind: sudden ? 'mort-subite' : g.giver === g.mySide ? 'indice' : 'devine', side: g.mySide };
+}
+
+/**
+ * Vue affichée. Par défaut selon mon rôle dans le tour : je donne l'indice → « Ma clé »
+ * (je vois les validations en direct), je devine → « Plateau ». Un choix manuel est
+ * conservé jusqu'au tour suivant (pas de rebascule automatique pendant le tour).
+ */
+export function duoView(room) {
+  const g = room.game;
+  const role = duoRole(room);
+  if (!role.side) return 'plateau';
+  const turnKey = `${room.id}:${room.match.round}:${g.turnNumber}:${role.kind}`;
+  if (state.ui.duoViewTurn !== turnKey) {
+    state.ui.duoViewTurn = turnKey;
+    state.ui.duoView = role.kind === 'indice' ? 'cle' : 'plateau';
+  }
+  return state.ui.duoView;
+}
+
+function setView(view) {
+  state.ui.duoView = view; // valable jusqu'au prochain changement de tour
+  rerender();
+}
+
+function viewToggle(room) {
+  return segmented({
+    label: 'Affichage du plateau',
+    id: 'cn-duo-toggle',
+    options: [['cle', 'Ma clé'], ['plateau', 'Plateau']],
+    value: duoView(room),
+    onChange: setView
+  });
 }
 
 function canSelect(room, role) {
@@ -57,9 +102,72 @@ function canSelect(room, role) {
   return role.kind === 'devine' && g.phase === 'devinette';
 }
 
+// ---------- Cartes ----------
+
+/** Traduit l'état projeté d'une carte en carte du plateau (classes, marqueur, badges). */
+function toBoardCard(pc, viewer) {
+  const card = { word: pc.word, label: pc.label, classes: [`d-${pc.kind}`], badges: [] };
+  (pc.passantFor || []).forEach((s) => card.badges.push({ text: `${s} –`, cls: SIDE_CLASS[s] }));
+
+  switch (pc.kind) {
+    case 'key':
+      card.classes.push(`d-face-${pc.keyColor}`);
+      if (pc.keyColor === 'agent') { card.classes.push(SIDE_CLASS[viewer]); card.mark = `mk-${viewer}`; }
+      else card.mark = pc.keyColor === 'neutre' ? 'mk-n' : 'mk-x';
+      break;
+    case 'validated':
+      card.classes.push(SIDE_CLASS[pc.owner]);
+      card.mark = `mk-${pc.owner}`;
+      card.check = true;
+      card.revealed = true;
+      break;
+    case 'common':
+      card.mark = 'mk-AB';
+      card.check = true;
+      card.revealed = true;
+      break;
+    case 'error':
+      card.mark = 'mk-n';
+      card.revealed = true;
+      break;
+    case 'retired':
+      if (pc.keyColor) {
+        card.classes.push(`d-face-${pc.keyColor}`);
+        card.mark = pc.keyColor === 'agent' ? `mk-${viewer}` : pc.keyColor === 'neutre' ? 'mk-n' : 'mk-x';
+      }
+      break;
+    case 'end': {
+      const a = pc.faceA;
+      const b = pc.faceB;
+      const agentA = a === 'agent';
+      const agentB = b === 'agent';
+      if (pc.assassinHit) { card.classes.push('d-face-assassin', 'd-hit'); card.mark = 'mk-x'; card.revealed = true; }
+      else if (agentA && agentB) { card.classes.push(pc.found ? 'd-common' : 'd-common-tint'); card.mark = 'mk-AB'; card.check = pc.found; card.revealed = pc.found; }
+      else if (agentA || agentB) {
+        const owner = agentA ? 'A' : 'B';
+        card.classes.push(pc.found ? 'd-validated' : 'd-face-agent', SIDE_CLASS[owner]);
+        card.mark = `mk-${owner}`;
+        card.check = pc.found;
+        card.revealed = pc.found;
+      } else if (a === 'assassin' || b === 'assassin') { card.classes.push('d-face-assassin'); card.mark = 'mk-x'; }
+      else { card.classes.push('d-face-neutre'); card.mark = 'mk-n'; }
+      card.badges = [
+        { text: `A${FACE_SYMBOL[a]}`, cls: 'own-A' },
+        { text: `B${FACE_SYMBOL[b]}`, cls: 'own-B' }
+      ];
+      break;
+    }
+    default:
+      break;
+  }
+  return card;
+}
+
+let lastProjection = [];
+
 export function duoCards(room) {
   const g = room.game;
-  const role = roleOf(room);
+  const role = duoRole(room);
   const ended = room.status === 'terminee';
   const selecting = canSelect(room, role);
   const selKey = selectionKeyFor(room);
@@ -69,71 +177,123 @@ export function duoCards(room) {
   }
   if (state.ui.selected !== null && g.found[state.ui.selected]) state.ui.selected = null;
 
-  return g.words.map((word, i) => {
-    const badges = [];
-    const marksText = [];
-    if (g.bystanders.A[i]) { badges.push('A'); marksText.push('passant identifié pour la face de A'); }
-    if (g.bystanders.B[i]) { badges.push('B'); marksText.push('passant identifié pour la face de B'); }
-
-    if (ended && g.keys) {
-      const a = g.keys.A[i];
-      const b = g.keys.B[i];
-      const key = g.assassinIndex === i ? 'assassin' : (a === 'agent' || b === 'agent') ? 'agent' : (a === 'assassin' || b === 'assassin') ? 'assassin' : 'neutre';
-      return {
-        word,
-        key,
-        revealed: g.found[i] || g.assassinIndex === i,
-        badges: [`A${SYMBOL[a]}`, `B${SYMBOL[b]}`],
-        label: `${word}, face A : ${WORD[a]}, face B : ${WORD[b]}${g.found[i] ? ', agent trouvé' : ''}${g.assassinIndex === i ? ', assassin touché' : ''}`
-      };
-    }
-    if (g.found[i]) {
-      return { word, key: 'agent', revealed: true, label: `${word}, agent trouvé` };
-    }
-    const myColor = g.myKey && keyVisible() ? g.myKey[i] : null;
-    const blockedForGiver = role.kind === 'devine' && g.bystanders[g.giver][i];
-    const interactive = selecting && !blockedForGiver;
-    const selected = state.ui.selected === i;
-    return {
-      word,
-      key: myColor,
-      badges,
-      selected,
-      interactive,
-      focusable: !interactive,
-      onclick: () => { state.ui.selected = state.ui.selected === i ? null : i; rerender(); },
-      label: [word, myColor ? `votre face : ${WORD[myColor]}` : 'non révélée', ...marksText, selected ? 'sélectionnée' : null].filter(Boolean).join(', ')
-    };
+  const viewer = role.side || null;
+  const projected = projectDuoBoard({
+    viewer,
+    view: duoView(room),
+    words: g.words,
+    myFace: g.myKey,
+    reveals: g.reveals || [],
+    ended: ended && !!g.keys,
+    keys: g.keys,
+    assassinIndex: g.assassinIndex,
+    names: names(),
+    canSelect: (i) => selecting && !g.found[i] && !(role.kind === 'devine' && g.bystanders[g.giver][i])
   });
+
+  lastProjection = projected;
+  return projected.map((pc, i) => {
+    const card = toBoardCard(pc, viewer);
+    if (pc.selectable) {
+      const selected = state.ui.selected === i;
+      card.interactive = true;
+      card.selected = selected;
+      card.onclick = () => { state.ui.selected = state.ui.selected === i ? null : i; rerender(); };
+      if (selected) card.label += ', sélectionnée';
+    }
+    return card;
+  });
+}
+
+// ---------- Bandeau « indice en cours » ----------
+
+/** Progression de l'indice selon la règle « Fin d'un indice ». */
+export function clueProgress(g) {
+  const c = g.clue;
+  if (!c) return null;
+  const found = c.agentsFound || 0;
+  const plural = (n) => (n > 1 ? 's' : '');
+  if (c.unlimited || c.count === 0 || g.clueEnd === 'illimite') {
+    return { text: `${found} trouvé${plural(found)}`, detail: 'jusqu’à une erreur ou une passe', ratio: null };
+  }
+  if (g.clueEnd === 'bonus') {
+    return { text: `${found}/${c.count} trouvé${plural(found)}`, detail: found >= c.count ? 'essai bonus disponible' : `+ 1 essai bonus`, ratio: Math.min(1, found / c.count) };
+  }
+  return { text: `${found}/${c.count} trouvé${plural(found)}`, detail: 'le tour s’arrête à ' + c.count, ratio: Math.min(1, found / c.count) };
+}
+
+/** Bandeau au-dessus du plateau, visible dans les deux vues et pour tous. */
+export function duoClueBanner(room) {
+  const g = room.game;
+  if (room.status !== 'en_cours' || !g.clue || g.phase !== 'devinette') return null;
+  const guesser = otherSide(g.clue.giver);
+  const role = duoRole(room);
+  const progress = clueProgress(g);
+  const who = role.side === guesser ? 'Vous devinez' : `${sideName(guesser)} devine`;
+  return el('div', { class: `cn-cluebar cn-cluebar--${guesser}`, role: 'status', 'aria-label': `Indice en cours : ${g.clue.word} ${g.clue.display}, ${progress.text}, ${who}` }, [
+    el('span', { class: 'cn-cluebar__label ds-label', text: 'Indice' }),
+    el('span', { class: 'cn-cluebar__word', text: g.clue.word }),
+    el('span', { class: 'cn-cluebar__num', text: g.clue.display }),
+    el('span', { class: 'cn-cluebar__progress' }, [
+      el('strong', { text: progress.text }),
+      el('span', { class: 'ds-faint', text: ` · ${progress.detail}` })
+    ]),
+    progress.ratio !== null ? el('span', { class: 'cn-cluebar__meter', 'aria-hidden': 'true' }, [el('span', { style: `transform: scaleX(${progress.ratio})` })]) : null,
+    el('span', { class: 'cn-cluebar__who' }, [sideMark(guesser), who])
+  ]);
+}
+
+// ---------- Légende et ligne de statut ----------
+
+function legendSwatch(kind) {
+  if (kind === 'A' || kind === 'B') return sideMark(kind);
+  if (kind === 'passant') return mark('neutral');
+  if (kind === 'assassin') return mark('assassin');
+  if (kind === 'check') return el('span', { class: 'cn-legend__check', 'aria-hidden': 'true', text: '✓' });
+  if (kind === 'common') return el('span', { class: 'cn-legend__common', 'aria-hidden': 'true' });
+  return el('span', { class: 'cn-legend__retired', 'aria-hidden': 'true' });
+}
+
+function duoLegend(room) {
+  const role = duoRole(room);
+  const items = legendFor(duoView(room), role.side || null, lastProjection)
+    // Spectateur : pseudos plutôt que « A » / « B »
+    .map(([kind, text]) => (!role.side && (kind === 'A' || kind === 'B') ? [kind, `Agents de ${sideName(kind)} trouvés`] : [kind, text]));
+  return el('span', { class: 'cn-legend', 'aria-label': 'Légende des symboles' },
+    items.map(([kind, text]) => el('span', { class: 'cn-legend__item' }, [legendSwatch(kind), text])));
 }
 
 export function duoStatus(room) {
   const g = room.game;
-  const role = roleOf(room);
+  const role = duoRole(room);
   if (room.status === 'terminee') {
     return el('div', { class: 'cn-statusline' }, [
       el('span', { class: 'cn-statusline__main', text: 'Partie terminée — les deux faces de la clé sont révélées' }),
-      el('span', { class: 'cn-statusline__hint', text: 'A✓ / B× : agent, assassin ou passant (–) sur chaque face' })
+      el('span', { class: 'cn-legend' }, [
+        el('span', { class: 'cn-legend__item' }, [sideMark('A'), `Agents de ${sideName('A')}`]),
+        el('span', { class: 'cn-legend__item' }, [sideMark('B'), `Agents de ${sideName('B')}`]),
+        el('span', { class: 'cn-legend__item' }, [legendSwatch('common'), 'Commun']),
+        el('span', { class: 'cn-legend__item ds-faint', text: 'A✓ / B× / A– : face de chaque joueur' })
+      ])
     ]);
   }
-  const main = g.phase === 'mort-subite'
-    ? [el('span', { class: 'cn-sudden-dot', 'aria-hidden': 'true' }), 'Mort subite : plus d’indices, toute erreur est fatale']
-    : [mark('green'), `Tour ${g.turnNumber} · ${g.phase === 'indice' ? `${sideName(g.giver)} cherche un indice` : `${sideName(g.giver === 'A' ? 'B' : 'A')} devine`}`];
+  const info = duoPhaseInfo(room);
+  const dot = g.phase === 'mort-subite' ? el('span', { class: 'cn-sudden-dot', 'aria-hidden': 'true' })
+    : g.phase === 'indice' ? el('span', { class: 'cn-phase-dot', 'aria-hidden': 'true' })
+      : sideMark(otherSide(g.giver));
+  const main = [dot, el('strong', { class: `cn-phase-text${info.myTurn ? ' is-mine' : ''}`, text: info.text }),
+    el('span', { class: 'ds-faint', text: g.phase === 'mort-subite' ? '· toute erreur est fatale' : `· tour ${g.turnNumber}` })];
   return el('div', { class: 'cn-statusline' }, [
     el('span', { class: 'cn-statusline__main' }, main),
-    role.kind === 'spectateur'
-      ? el('span', { class: 'cn-statusline__hint', text: 'Les faces de la clé restent secrètes jusqu’à la fin.' })
-      : el('span', { class: 'cn-statusline__keyinfo' }, [
-        keyVisible()
-          ? el('span', { class: 'cn-statusline__keyinfo' }, [
-            el('span', { class: 'cn-lock' }, [ICONS.lock()]),
-            legend([['green', 'Agent'], ['neutral', 'Passant'], ['assassin', 'Assassin']])
-          ])
-          : el('span', { class: 'ds-small ds-faint', text: 'Clé masquée : plateau neutre' }),
-        keyToggle()
-      ])
+    el('span', { class: 'cn-statusline__keyinfo' }, [
+      role.side && duoView(room) === 'cle' ? el('span', { class: 'cn-lock' }, [ICONS.lock()]) : null,
+      duoLegend(room),
+      role.side ? viewToggle(room) : null
+    ])
   ]);
 }
+
+// ---------- Panneaux ----------
 
 function tokensStrip(g) {
   return el('div', { class: 'cn-tokens', role: 'img', 'aria-label': `${g.tokensLeft} jeton${g.tokensLeft > 1 ? 's' : ''} de temps sur ${g.tokensTotal}` },
@@ -155,21 +315,25 @@ function validateButton(room) {
   });
 }
 
-function sideTag(side) {
-  return el('span', { class: 'cn-team-tag cn-team-tag--duo', text: `Joueur ${side}` });
+export function sideTag(side) {
+  return el('span', { class: `cn-team-tag cn-team-tag--${side}` }, [sideMark(side), sideName(side)]);
+}
+
+function clueWord(g, size) {
+  return el('div', { class: `cn-clue cn-clue--${size}` }, [el('span', { class: 'cn-clue__word', text: g.clue.word }), el('span', { class: 'cn-clue__num', text: g.clue.display })]);
 }
 
 export function duoActionPanel(room) {
   const g = room.game;
   if (room.status !== 'en_cours') return null;
-  const role = roleOf(room);
-  const partner = role.side ? sideName(role.side === 'A' ? 'B' : 'A') : null;
+  const role = duoRole(room);
+  const partner = role.side ? sideName(otherSide(role.side)) : null;
   const tokensRow = el('div', { class: 'cn-tokens-row' }, [el('span', { class: 'ds-small ds-muted', text: `Jetons de temps : ${g.tokensLeft}/${g.tokensTotal}` }), tokensStrip(g)]);
 
   if (role.kind === 'mort-subite') {
     return el('section', { class: 'ds-panel ds-stack cn-action cn-action--sudden', 'aria-label': 'Mort subite' }, [
       el('div', { class: 'ds-panel__head' }, [el('span', { class: 'ds-label', text: 'Mort subite' }), sideTag(role.side)]),
-      el('p', { class: 'cn-waiting', text: 'Plus de jetons : désignez un agent de la face de votre partenaire.' }),
+      el('p', { class: 'cn-waiting', text: `Plus de jetons : désignez un agent de la face de ${partner}.` }),
       el('p', { class: 'ds-small ds-muted', text: 'Une seule erreur (passant ou assassin) et la mission échoue.' }),
       validateButton(room)
     ]);
@@ -178,13 +342,15 @@ export function duoActionPanel(room) {
   if (role.kind === 'indice') {
     if (g.phase === 'indice') {
       const form = clueForm({ teamTagNode: sideTag(role.side), disabled: room.paused });
-      form.insertBefore(el('p', { class: 'ds-small ds-muted cn-duo-hint', text: `Faites deviner les agents verts de votre face à ${partner}. ${g.myAgentsLeft} restant${g.myAgentsLeft > 1 ? 's' : ''} sur votre face.` }), form.children[1]);
+      form.insertBefore(el('p', { class: 'ds-small ds-muted cn-duo-hint' }, [
+        'Faites deviner vos agents ', sideMark(role.side), ` à ${partner}. ${g.myAgentsLeft} restant${g.myAgentsLeft > 1 ? 's' : ''} sur votre face.`
+      ]), form.children[1]);
       form.appendChild(tokensRow);
       return form;
     }
     return el('section', { class: 'ds-panel ds-stack cn-action', 'aria-label': 'Indice envoyé' }, [
       el('div', { class: 'ds-panel__head' }, [el('span', { class: 'ds-label', text: 'Indice envoyé' }), sideTag(role.side)]),
-      el('div', { class: 'cn-clue cn-clue--md' }, [el('span', { class: 'cn-clue__word', text: g.clue.word }), el('span', { class: 'cn-clue__num', text: g.clue.display })]),
+      clueWord(g, 'md'),
       el('span', { class: 'ds-small ds-muted', text: `${partner} devine · ${g.clue.guessesMade} proposition${g.clue.guessesMade > 1 ? 's' : ''}` }),
       tokensRow
     ]);
@@ -192,12 +358,13 @@ export function duoActionPanel(room) {
 
   // Joueur qui devine, ou spectateur
   const body = [el('div', { class: 'ds-panel__head' }, [
-    el('span', { class: 'ds-label', text: g.clue ? `Indice de ${sideName(g.clue.giver)}` : 'Indice' }),
-    role.side ? sideTag(role.side) : el('span', { class: 'cn-team-tag', text: 'Spectateur' })
+    el('span', { class: 'ds-label', text: g.clue ? 'Indice' : 'En attente' }),
+    g.clue ? sideTag(g.clue.giver) : (role.side ? sideTag(role.side) : el('span', { class: 'cn-team-tag', text: 'Spectateur' }))
   ])];
   if (g.clue) {
-    body.push(el('div', { class: 'cn-clue cn-clue--lg' }, [el('span', { class: 'cn-clue__word', text: g.clue.word }), el('span', { class: 'cn-clue__num', text: g.clue.display })]));
-    body.push(el('span', { class: 'ds-small ds-muted', role: 'status', text: `${g.clue.guessesMade} proposition${g.clue.guessesMade > 1 ? 's' : ''} · continuez tant que vous trouvez des agents` }));
+    body.push(clueWord(g, 'lg'));
+    const progress = clueProgress(g);
+    body.push(el('span', { class: 'ds-small ds-muted', text: `${progress.text} · ${progress.detail}` }));
   } else {
     body.push(el('p', { class: 'cn-waiting', text: `${sideName(g.giver)} cherche un indice…` }));
   }
@@ -213,16 +380,21 @@ export function duoActionPanel(room) {
 
 export function duoHeader(room) {
   const g = room.game;
-  const role = roleOf(room);
+  const role = duoRole(room);
+  const roleText = room.status !== 'en_cours' ? 'partie terminée'
+    : role.kind === 'indice' ? (g.phase === 'indice' ? 'cherche un indice' : 'a donné l’indice')
+    : role.kind === 'devine' ? (g.phase === 'devinette' ? 'devine' : 'attend l’indice')
+      : 'mort subite';
   const rolePill = role.side
-    ? el('span', { class: 'ds-pill ds-pill--strong cn-role-pill' }, [mark('green'), `Joueur ${role.side}`,
-      el('span', { class: 'ds-faint', text: role.kind === 'indice' ? '· donne l’indice' : role.kind === 'devine' ? '· devine' : '· mort subite' })])
+    ? el('span', { class: `ds-pill ds-pill--strong cn-role-pill cn-role-pill--${role.side}`, 'aria-label': `Vous : ${sideName(role.side)}, joueur ${role.side}, ${roleText}` }, [
+      sideMark(role.side), sideName(role.side), el('span', { class: 'ds-faint', text: `· ${roleText}` })
+    ])
     : el('span', { class: 'ds-pill cn-role-pill' }, [ICONS.eye(), 'Spectateur']);
   const low = g.tokensLeft <= 2 && room.status === 'en_cours';
   return [
     rolePill,
     el('span', { class: `ds-pill${low ? ' ds-pill--on cn-pill-alert' : ''}`, 'aria-label': `${g.tokensLeft} jetons de temps restants sur ${g.tokensTotal}` }, [ICONS.hourglass(), 'Jetons', el('b', { text: String(g.tokensLeft) })]),
-    el('span', { class: 'ds-pill', 'aria-label': `${g.agentsFound} agents trouvés sur ${g.agentsTotal}` }, [mark('green'), 'Agents', el('b', { text: `${g.agentsFound}/${g.agentsTotal}` })])
+    el('span', { class: 'ds-pill', 'aria-label': `${g.agentsFound} agents trouvés sur ${g.agentsTotal}` }, [el('span', { class: 'cn-legend__common', 'aria-hidden': 'true' }), 'Agents', el('b', { text: `${g.agentsFound}/${g.agentsTotal}` })])
   ];
 }
 

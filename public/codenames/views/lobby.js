@@ -11,7 +11,8 @@ const ENUM_LABELS = {
   wordPack: { classique: 'Mots courants' },
   captainMode: { 'fixe': 'Fixes pour toute la session', 'rotation-tour': 'Rotation à tour de rôle', 'rotation-aleatoire': 'Rotation aléatoire' },
   startingTeam: { aleatoire: 'Aléatoire', alternee: 'Alternée', rouge: 'Rouges', bleu: 'Bleus' },
-  teamAssignment: { manuelle: 'Manuelle (chacun choisit)', aleatoire: 'Aléatoire (tirage au lancement)' }
+  teamAssignment: { manuelle: 'Manuelle (chacun choisit)', aleatoire: 'Aléatoire (tirage au lancement)' },
+  clueEnd: { strict: 'Strict : s’arrête à N agents trouvés', bonus: 'Un essai bonus (N + 1)', illimite: 'Illimité : jusqu’à une erreur' }
 };
 const DURATION_FIELDS = ['clueSeconds', 'guessSeconds', 'turnSeconds'];
 
@@ -96,9 +97,9 @@ function renderTeams(room) {
     for (const side of ['A', 'B']) {
       const m = players.find((p) => p.side === side);
       const canTake = mine && (!m || m.id !== state.playerId) && (mine.kind === 'joueur' || !m);
-      boxes.push(el('section', { class: 'ds-panel cn-team cn-team--duo', 'aria-label': `Joueur ${side}` }, [
+      boxes.push(el('section', { class: `ds-panel cn-team cn-team--duo cn-team--duo-${side}`, 'aria-label': `Joueur ${side}` }, [
         el('div', { class: 'ds-panel__head' }, [
-          el('h3', { class: 'cn-team__title' }, [mark('green'), `Joueur ${side}`]),
+          el('h3', { class: 'cn-team__title' }, [mark(side === 'A' ? 'red' : 'blue'), `Joueur ${side}`]),
           el('span', { class: 'ds-small ds-faint', text: m ? 'Place prise' : 'Place libre' })
         ]),
         m ? el('ul', { class: 'cn-members' }, [memberRow(m, mode)]) : el('p', { class: 'cn-team__empty ds-small ds-faint', text: 'En attente d’un joueur.' }),

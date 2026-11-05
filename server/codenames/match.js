@@ -103,6 +103,7 @@ class MatchController {
       keys: generateDuoKeys(this.rng),
       tokens: s.timeTokens,
       suddenDeath: s.suddenDeath,
+      clueEnd: s.clueEnd || 'strict', // salons créés avant l'option : « Strict » par défaut
       firstGiver: this.rng() < 0.5 ? 'A' : 'B'
     });
   }
@@ -480,10 +481,15 @@ class MatchController {
       myAgentsLeft: side ? duo.agentsLeft(g, side) : null,
       giver: g.giver,
       phase: g.phase,
-      clue: g.clue ? { giver: g.clue.giver, word: g.clue.word, display: g.clue.display, guessesMade: g.clue.guessesMade } : null,
+      clue: g.clue ? {
+        giver: g.clue.giver, word: g.clue.word, display: g.clue.display, count: g.clue.count,
+        unlimited: g.clue.unlimited, guessesMade: g.clue.guessesMade, agentsFound: g.clue.agentsFound
+      } : null,
+      reveals: g.reveals.map((r) => ({ ...r, clue: r.clue ? { ...r.clue } : null })),
       tokensLeft: g.tokensLeft,
       tokensTotal: g.tokensTotal,
       suddenDeathEnabled: g.suddenDeathEnabled,
+      clueEnd: g.clueEnd,
       agentsFound: duo.foundCount(g),
       agentsTotal: g.agentsTotal,
       history: g.history.slice(-200),

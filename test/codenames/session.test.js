@@ -165,3 +165,12 @@ test('l’hôte peut revenir au lobby en pleine manche ; un joueur non', () => {
   assert.equal(room.game, null);
   assert.equal(room.members.size, 4);
 });
+
+test('Duo : la règle « Fin d’un indice » du salon est appliquée et affichée dans la liste', () => {
+  const { manager, match, room } = setup('duo', { duo: { clueEnd: 'bonus' } });
+  manager.join(room.id, { playerId: 'p2', name: 'P2' });
+  assert.ok(manager.summary(room).details.includes('Indice + 1 essai'));
+  match.start(room.id, 'p1');
+  assert.equal(room.game.clueEnd, 'bonus');
+  assert.throws(() => manager.updateSettings(room.id, 'p1', { duo: { clueEnd: 'strict' } }), /avant le lancement/);
+});

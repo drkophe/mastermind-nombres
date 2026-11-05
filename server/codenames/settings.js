@@ -37,6 +37,9 @@ const SETTINGS_SCHEMA = {
     fields: {
       timeTokens: { type: 'int', min: 1, max: 15, default: 9, label: 'Jetons de temps' },
       suddenDeath: { type: 'bool', default: true, label: 'Mort subite' },
+      // Fin d'un indice : strict = le tour s'arrête quand autant d'agents que le nombre
+      // annoncé ont été trouvés ; bonus = un essai de plus ; illimite = jusqu'à une erreur.
+      clueEnd: { type: 'enum', values: ['strict', 'bonus', 'illimite'], default: 'strict', label: 'Fin d’un indice' },
       timerEnabled: { type: 'bool', default: false, label: 'Timer par tour' },
       turnSeconds: { type: 'int', min: 30, max: 900, default: 180, label: 'Durée d\'un tour (s)' }
     }

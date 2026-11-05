@@ -72,7 +72,8 @@ function authorClass(m) {
   if (m.authorRole === 'spectateur') return 'ds-msg__author--spectator';
   if (m.authorTeam === 'rouge') return 'ds-msg__author--red';
   if (m.authorTeam === 'bleu') return 'ds-msg__author--blue';
-  if (m.authorTeam === 'A' || m.authorTeam === 'B') return 'ds-msg__author--green';
+  if (m.authorTeam === 'A') return 'ds-msg__author--red'; // Duo : A = rouge
+  if (m.authorTeam === 'B') return 'ds-msg__author--blue'; // Duo : B = bleu
   return '';
 }
 
@@ -159,8 +160,8 @@ function rosterPanel() {
     }
   } else {
     groups.push(el('div', { class: 'cn-roster__group' }, [
-      el('span', { class: 'cn-roster__title' }, [mark('green'), 'Joueurs']),
-      el('ul', { class: 'cn-roster__list' }, players.sort((a, b) => (a.side || '').localeCompare(b.side || '')).map((m) => row(m, [`Joueur ${m.side}`])))
+      el('span', { class: 'cn-roster__title', text: 'Joueurs' }),
+      el('ul', { class: 'cn-roster__list' }, players.sort((a, b) => (a.side || '').localeCompare(b.side || '')).map((m) => row(m, [mark(m.side === 'A' ? 'red' : 'blue'), `Joueur ${m.side}`])))
     ]));
   }
   if (spectators.length) {

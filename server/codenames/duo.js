@@ -13,7 +13,9 @@ const { countDuoAgents } = require('./board');
 
 const otherSide = (side) => (side === 'A' ? 'B' : 'A');
 
-function createDuoGame({ words, keys, tokens = 9, suddenDeath = true, firstGiver = 'A' }) {
+const CLUE_END_MODES = ['strict', 'bonus', 'illimite'];
+
+function createDuoGame({ words, keys, tokens = 9, suddenDeath = true, firstGiver = 'A', clueEnd = 'strict' }) {
   if (words.length !== 25 || keys.A.length !== 25 || keys.B.length !== 25) throw new Error('Plateau invalide');
   const game = {
     mode: 'duo',
@@ -26,10 +28,14 @@ function createDuoGame({ words, keys, tokens = 9, suddenDeath = true, firstGiver
     tokensTotal: tokens,
     tokensLeft: tokens,
     suddenDeathEnabled: suddenDeath,
+    clueEnd: CLUE_END_MODES.includes(clueEnd) ? clueEnd : 'strict',
     giver: firstGiver,
     phase: 'indice', // indice | devinette | mort-subite | fin
     clue: null,
     history: [],
+    // Journal public des révélations : qui a deviné, pour quel indice, avec quel résultat
+    // (jugé sur la face du donneur). Ne contient rien que les joueurs ne voient déjà.
+    reveals: [],
     result: null, // victoire | defaite
     endReason: null, // agents | assassin | temps | mort-subite | abandon
     assassinIndex: null,
@@ -80,7 +86,8 @@ function giveClue(game, side, rawWord, rawCount) {
     count: clue.count,
     unlimited: clue.unlimited,
     display: displayCount(clue),
-    guessesMade: 0
+    guessesMade: 0,
+    agentsFound: 0
   };
   game.phase = 'devinette';
   game.history.push({ type: 'indice', side, word: clue.word, count: game.clue.display, turn: game.turnNumber });
@@ -105,6 +112,20 @@ function endTurn(game, reason) {
   game.phase = 'indice';
 }
 
+const RESULT = { agent: 'agent', neutre: 'passant', assassin: 'assassin' };
+
+function logReveal(game, { index, guesser, giver, color, suddenDeath }) {
+  game.reveals.push({
+    index,
+    guesser,
+    giver,
+    result: RESULT[color],
+    turn: suddenDeath ? null : game.turnNumber,
+    clue: !suddenDeath && game.clue ? { word: game.clue.word, count: game.clue.display } : null,
+    suddenDeath: !!suddenDeath
+  });
+}
+
 function checkIndex(game, index) {
   if (!Number.isInteger(index) || index < 0 || index >= 25) throw new CodenamesError('Carte invalide.');
   if (game.found[index]) throw new CodenamesError('Cet agent a déjà été trouvé.');
@@ -124,6 +145,7 @@ function guess(game, side, index) {
     const judge = otherSide(side);
     const color = game.keys[judge][index];
     game.history.push({ type: 'carte', side: judge, guesser: side, index, word: game.words[index], color, suddenDeath: true });
+    logReveal(game, { index, guesser: side, giver: judge, color, suddenDeath: true });
     if (color === 'agent') {
       game.found[index] = true;
       if (foundCount(game) === game.agentsTotal) finish(game, 'victoire', 'agents');
@@ -144,14 +166,18 @@ function guess(game, side, index) {
   const color = game.keys[giver][index];
   game.clue.guessesMade++;
   game.history.push({ type: 'carte', side: giver, guesser: side, index, word: game.words[index], color, turn: game.turnNumber });
+  logReveal(game, { index, guesser: side, giver, color, suddenDeath: false });
 
   if (color === 'agent') {
     game.found[index] = true;
+    game.clue.agentsFound++;
     if (foundCount(game) === game.agentsTotal) {
       finish(game, 'victoire', 'agents');
     } else if (agentsLeft(game, giver) === 0) {
       // Plus rien à faire deviner sur cette face : le tour s'arrête.
       endTurn(game, 'face-terminee');
+    } else if (clueLimitReached(game)) {
+      endTurn(game, game.clueEnd === 'strict' ? 'indice-complete' : 'essais');
     }
   } else if (color === 'neutre') {
     game.bystanders[giver][index] = true;
@@ -161,6 +187,18 @@ function guess(game, side, index) {
     finish(game, 'defaite', 'assassin');
   }
   return { color, turnEnded: game.phase !== 'devinette', result: game.result };
+}
+
+/**
+ * Fin automatique d'un indice selon l'option « Fin d'un indice ».
+ * Les indices « 0 » et « illimité » ne sont jamais limités (comme en Classique).
+ * Une erreur termine toujours le tour et l'assassin fait perdre : traités ailleurs.
+ */
+function clueLimitReached(game) {
+  const clue = game.clue;
+  if (!clue || clue.unlimited || clue.count === 0 || game.clueEnd === 'illimite') return false;
+  const limit = game.clueEnd === 'bonus' ? clue.count + 1 : clue.count;
+  return clue.agentsFound >= limit;
 }
 
 /** Passer volontairement après au moins une proposition (consomme un jeton). */
@@ -181,4 +219,4 @@ function abort(game) {
   if (game.phase !== 'fin') finish(game, 'defaite', 'abandon');
 }
 
-module.exports = { createDuoGame, giveClue, guess, pass, timeout, abort, agentsLeft, foundCount, otherSide };
+module.exports = { CLUE_END_MODES, clueLimitReached, createDuoGame, giveClue, guess, pass, timeout, abort, agentsLeft, foundCount, otherSide };
