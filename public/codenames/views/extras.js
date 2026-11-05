@@ -18,7 +18,8 @@ const END_TURN = {
   'temps-indice': 'temps écoulé pendant l’indice',
   'temps-devinette': 'temps écoulé pendant la devinette',
   temps: 'temps écoulé',
-  'face-terminee': 'plus d’agent à trouver sur cette face'
+  'face-terminee': 'plus d’agent à trouver sur cette face',
+  'indice-complete': 'indice complété'
 };
 const COLOR_TEXT = { rouge: 'rouge', bleu: 'bleue', neutre: 'neutre', assassin: 'ASSASSIN', agent: 'agent' };
 const COLOR_MARK = { rouge: 'red', bleu: 'blue', neutre: 'neutral', assassin: 'assassin', agent: 'green' };

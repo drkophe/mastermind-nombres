@@ -11,7 +11,8 @@ const ENUM_LABELS = {
   wordPack: { classique: 'Mots courants' },
   captainMode: { 'fixe': 'Fixes pour toute la session', 'rotation-tour': 'Rotation à tour de rôle', 'rotation-aleatoire': 'Rotation aléatoire' },
   startingTeam: { aleatoire: 'Aléatoire', alternee: 'Alternée', rouge: 'Rouges', bleu: 'Bleus' },
-  teamAssignment: { manuelle: 'Manuelle (chacun choisit)', aleatoire: 'Aléatoire (tirage au lancement)' }
+  teamAssignment: { manuelle: 'Manuelle (chacun choisit)', aleatoire: 'Aléatoire (tirage au lancement)' },
+  clueEnd: { strict: 'Strict : s’arrête à N agents trouvés', bonus: 'Un essai bonus (N + 1)', illimite: 'Illimité : jusqu’à une erreur' }
 };
 const DURATION_FIELDS = ['clueSeconds', 'guessSeconds', 'turnSeconds'];
 

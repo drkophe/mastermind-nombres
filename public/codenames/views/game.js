@@ -2,7 +2,7 @@
  * Écran de partie : en-tête (rôle, scores), ligne de statut, plateau,
  * panneaux latéraux. Le contenu dépend du mode et du rôle réel du joueur.
  */
-import { el, replace, clear, ICONS } from '/assets/ds/dom.js';
+import { el, replace, clear, ICONS, toast } from '/assets/ds/dom.js';
 import { setPhaseTint } from '/assets/ds/phase-tint.js';
 import { state, notify, isHost } from '../state.js';
 import { actions } from '../api.js';
@@ -11,7 +11,7 @@ import { classicCards, classicStatus, classicActionPanel, classicHeader, setRere
 import { duoCards, duoStatus, duoActionPanel, duoHeader, setDuoRerender, DUO_END, duoView, duoPhaseInfo } from './duo.js';
 import { mountSide } from './side.js';
 import { MOBILE_QUERY } from '../chat-state.js';
-import { TEAM_PLURAL, other } from './common.js';
+import { TEAM_PLURAL, other, sideName } from './common.js';
 import { renderTimer } from './timer.js';
 import { historyPanel, definitionPanel, noticeBanner, showDefinition } from './extras.js';
 import { sessionTools, joinPanel } from './session.js';
@@ -100,7 +100,12 @@ function announce(room) {
   let text = '';
   if (last.type === 'indice') text = `Nouvel indice : ${last.word} ${last.count}.`;
   else if (last.type === 'carte') text = `${last.word} révélé : ${last.color === 'neutre' && room.game.mode === 'duo' ? 'passant' : last.color}.`;
-  else if (last.type === 'fin-tour') text = 'Fin du tour.';
+  else if (last.type === 'fin-tour' && last.reason === 'indice-complete' && room.game.mode === 'duo') {
+    // Message clair et visible pour les deux joueurs.
+    const next = room.game.phase === 'indice' ? room.game.giver : null;
+    text = next ? `Indice complété, la main passe à ${sideName(next)}.` : 'Indice complété.';
+    toast(text);
+  } else if (last.type === 'fin-tour') text = 'Fin du tour.';
   else if (last.type === 'fin') text = 'Fin de la manche.';
   if (text) layout.live.textContent = text;
 }

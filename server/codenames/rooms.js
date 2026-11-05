@@ -93,6 +93,7 @@ class RoomManager {
     } else {
       details.push(`${s.duo.timeTokens} jetons`);
       details.push(s.duo.suddenDeath ? 'Mort subite' : 'Sans mort subite');
+      details.push({ strict: 'Indice strict', bonus: 'Indice + 1 essai', illimite: 'Indice illimité' }[s.duo.clueEnd || 'strict']);
       if (s.duo.timerEnabled) details.push(`Timer ${s.duo.turnSeconds}s`);
     }
     return {

@@ -38,7 +38,7 @@ test('le clic est jugé selon la face du capitaine du tour', () => {
   const g = makeGame();
   // Carte agent pour A mais passant pour B
   const i = g.keys.A.findIndex((c, k) => c === 'agent' && g.keys.B[k] === 'neutre');
-  duo.giveClue(g, 'A', 'indice', 1);
+  duo.giveClue(g, 'A', 'indice', 2); // « 2 » : avec la règle Strict, le tour continue après 1 agent
   const r = duo.guess(g, 'B', i);
   assert.equal(r.color, 'agent');
   assert.equal(g.found[i], true);
@@ -81,7 +81,7 @@ test('assassin : défaite immédiate des deux joueurs', () => {
 
 test('passer : après au moins une proposition, consomme un jeton', () => {
   const g = makeGame();
-  duo.giveClue(g, 'A', 'indice', 1);
+  duo.giveClue(g, 'A', 'indice', 2);
   assert.throws(() => duo.pass(g, 'B'), /au moins une proposition/);
   duo.guess(g, 'B', indexes(g.keys.A, 'agent')[0]);
   duo.pass(g, 'B');
@@ -227,4 +227,83 @@ test('journal des révélations : mort subite jugée sur la face du partenaire',
   duo.guess(g, 'A', ok);
   const r = g.reveals.at(-1);
   assert.deepEqual([r.guesser, r.giver, r.result, r.suddenDeath, r.clue], ['A', 'B', 'agent', true, null]);
+});
+
+// ---------- Option « Fin d'un indice » ----------
+
+function clueEndGame(clueEnd) {
+  return makeGame({ clueEnd });
+}
+const agentsOfA = (g) => indexes(g.keys.A, 'agent');
+
+test('Strict (défaut) : le tour s’arrête quand N agents sont trouvés, et consomme un jeton', () => {
+  const g = makeGame();
+  assert.equal(g.clueEnd, 'strict');
+  duo.giveClue(g, 'A', 'animal', 2);
+  const [a1, a2] = agentsOfA(g);
+  duo.guess(g, 'B', a1);
+  assert.equal(g.phase, 'devinette');
+  duo.guess(g, 'B', a2);
+  assert.equal(g.phase, 'indice');
+  assert.equal(g.giver, 'B', 'la main passe à l’autre');
+  assert.equal(g.tokensLeft, 8, 'une fin automatique consomme un jeton comme une fin volontaire');
+  assert.equal(g.history.find((h) => h.type === 'fin-tour').reason, 'indice-complete');
+});
+
+test('Un essai bonus : N + 1 agents possibles', () => {
+  const g = clueEndGame('bonus');
+  duo.giveClue(g, 'A', 'animal', 2);
+  const [a1, a2, a3] = agentsOfA(g);
+  duo.guess(g, 'B', a1);
+  duo.guess(g, 'B', a2);
+  assert.equal(g.phase, 'devinette', 'un essai de plus autorisé');
+  duo.guess(g, 'B', a3);
+  assert.equal(g.phase, 'indice');
+  assert.equal(g.history.find((h) => h.type === 'fin-tour').reason, 'essais');
+});
+
+test('Illimité : on continue jusqu’à une erreur ou une passe', () => {
+  const g = clueEndGame('illimite');
+  duo.giveClue(g, 'A', 'animal', 1);
+  const [a1, a2, a3] = agentsOfA(g);
+  for (const i of [a1, a2, a3]) duo.guess(g, 'B', i);
+  assert.equal(g.phase, 'devinette');
+  assert.equal(g.clue.agentsFound, 3);
+});
+
+test('Indices « 0 » et « illimité » : jamais de fin automatique, quelle que soit la règle', () => {
+  for (const mode of ['strict', 'bonus']) {
+    for (const count of [0, 'illimite']) {
+      const g = clueEndGame(mode);
+      duo.giveClue(g, 'A', 'animal', count);
+      agentsOfA(g).slice(0, 4).forEach((i) => duo.guess(g, 'B', i));
+      assert.equal(g.phase, 'devinette', `${mode} / ${count}`);
+    }
+  }
+});
+
+test('Quelle que soit la règle : une erreur termine le tour, l’assassin fait perdre', () => {
+  for (const mode of ['strict', 'bonus', 'illimite']) {
+    const g = clueEndGame(mode);
+    duo.giveClue(g, 'A', 'animal', 3);
+    duo.guess(g, 'B', indexes(g.keys.A, 'neutre')[0]);
+    assert.equal(g.phase, 'indice', mode);
+    assert.equal(g.tokensLeft, 8);
+    const h = clueEndGame(mode);
+    duo.giveClue(h, 'A', 'animal', 3);
+    duo.guess(h, 'B', h.keys.A.indexOf('assassin'));
+    assert.equal(h.result, 'defaite', mode);
+  }
+});
+
+test('Strict : passer reste possible avant d’avoir atteint N', () => {
+  const g = makeGame();
+  duo.giveClue(g, 'A', 'animal', 3);
+  duo.guess(g, 'B', agentsOfA(g)[0]);
+  duo.pass(g, 'B');
+  assert.equal(g.giver, 'B');
+});
+
+test('règle inconnue : Strict par défaut', () => {
+  assert.equal(makeGame({ clueEnd: 'nimporte' }).clueEnd, 'strict');
 });

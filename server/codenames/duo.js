@@ -13,7 +13,9 @@ const { countDuoAgents } = require('./board');
 
 const otherSide = (side) => (side === 'A' ? 'B' : 'A');
 
-function createDuoGame({ words, keys, tokens = 9, suddenDeath = true, firstGiver = 'A' }) {
+const CLUE_END_MODES = ['strict', 'bonus', 'illimite'];
+
+function createDuoGame({ words, keys, tokens = 9, suddenDeath = true, firstGiver = 'A', clueEnd = 'strict' }) {
   if (words.length !== 25 || keys.A.length !== 25 || keys.B.length !== 25) throw new Error('Plateau invalide');
   const game = {
     mode: 'duo',
@@ -26,6 +28,7 @@ function createDuoGame({ words, keys, tokens = 9, suddenDeath = true, firstGiver
     tokensTotal: tokens,
     tokensLeft: tokens,
     suddenDeathEnabled: suddenDeath,
+    clueEnd: CLUE_END_MODES.includes(clueEnd) ? clueEnd : 'strict',
     giver: firstGiver,
     phase: 'indice', // indice | devinette | mort-subite | fin
     clue: null,
@@ -173,6 +176,8 @@ function guess(game, side, index) {
     } else if (agentsLeft(game, giver) === 0) {
       // Plus rien à faire deviner sur cette face : le tour s'arrête.
       endTurn(game, 'face-terminee');
+    } else if (clueLimitReached(game)) {
+      endTurn(game, game.clueEnd === 'strict' ? 'indice-complete' : 'essais');
     }
   } else if (color === 'neutre') {
     game.bystanders[giver][index] = true;
@@ -182,6 +187,18 @@ function guess(game, side, index) {
     finish(game, 'defaite', 'assassin');
   }
   return { color, turnEnded: game.phase !== 'devinette', result: game.result };
+}
+
+/**
+ * Fin automatique d'un indice selon l'option « Fin d'un indice ».
+ * Les indices « 0 » et « illimité » ne sont jamais limités (comme en Classique).
+ * Une erreur termine toujours le tour et l'assassin fait perdre : traités ailleurs.
+ */
+function clueLimitReached(game) {
+  const clue = game.clue;
+  if (!clue || clue.unlimited || clue.count === 0 || game.clueEnd === 'illimite') return false;
+  const limit = game.clueEnd === 'bonus' ? clue.count + 1 : clue.count;
+  return clue.agentsFound >= limit;
 }
 
 /** Passer volontairement après au moins une proposition (consomme un jeton). */
@@ -202,4 +219,4 @@ function abort(game) {
   if (game.phase !== 'fin') finish(game, 'defaite', 'abandon');
 }
 
-module.exports = { createDuoGame, giveClue, guess, pass, timeout, abort, agentsLeft, foundCount, otherSide };
+module.exports = { CLUE_END_MODES, clueLimitReached, createDuoGame, giveClue, guess, pass, timeout, abort, agentsLeft, foundCount, otherSide };

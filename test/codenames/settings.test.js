@@ -36,3 +36,9 @@ test('une mise à jour partielle conserve les autres valeurs', () => {
   assert.equal(next.duo.suddenDeath, false);
   assert.equal(next.duo.timeTokens, 11);
 });
+
+test('Duo : « Fin d’un indice » vaut Strict par défaut et refuse les valeurs inconnues', () => {
+  assert.equal(defaultSettings().duo.clueEnd, 'strict');
+  assert.equal(sanitizeSettings({ duo: { clueEnd: 'bonus' } }).duo.clueEnd, 'bonus');
+  assert.equal(sanitizeSettings({ duo: { clueEnd: 'tricher' } }).duo.clueEnd, 'strict');
+});
