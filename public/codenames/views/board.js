@@ -11,7 +11,8 @@ export const KEY_LABEL = { rouge: 'carte rouge', bleu: 'carte bleue', neutre: 'c
 
 /**
  * cards : [{ word, key (rouge|bleu|neutre|assassin|agent|null), revealed, done,
- *            selected, interactive, onclick, label, badges: [texte] }]
+ *            selected, interactive, onclick, label, badges: [texte | {text, cls}],
+ *            classes: [classes supplémentaires], mark: classe du marqueur, check: bool }]
  * boardKey : identifiant du plateau (pour n'animer que les cartes nouvellement révélées).
  */
 export function renderBoard(host, cards, boardKey, ariaLabel) {
@@ -37,6 +38,7 @@ export function renderBoard(host, cards, boardKey, ariaLabel) {
     if (c.selected) classes.push('sel');
     if (c.word.length > 10) classes.push('is-long');
     if (!c.interactive) classes.push('is-static');
+    if (c.classes) classes.push(...c.classes);
     const attrs = {
       class: classes.join(' '),
       'aria-label': c.label,
@@ -49,10 +51,13 @@ export function renderBoard(host, cards, boardKey, ariaLabel) {
       // Carte non actionnable : lisible par les lecteurs d'écran, hors de l'ordre de tabulation.
       node = el('div', { ...attrs, role: 'img' });
     }
-    node.appendChild(el('span', { class: 'mk', 'aria-hidden': 'true' }));
+    node.appendChild(el('span', { class: `mk${c.mark ? ` ${c.mark}` : ''}`, 'aria-hidden': 'true' }));
+    if (c.check) node.appendChild(el('span', { class: 'cn-card__check', 'aria-hidden': 'true', text: '✓' }));
     node.appendChild(el('span', { class: 'cn-card__word', text: c.word, 'aria-hidden': 'true' }));
     if (c.badges && c.badges.length) {
-      node.appendChild(el('span', { class: 'cn-card__badges', 'aria-hidden': 'true' }, c.badges.map((b) => el('span', { class: 'cn-card__badge', text: b }))));
+      node.appendChild(el('span', { class: 'cn-card__badges', 'aria-hidden': 'true' }, c.badges.map((b) => (typeof b === 'string'
+        ? el('span', { class: 'cn-card__badge', text: b })
+        : el('span', { class: `cn-card__badge ${b.cls || ''}`, text: b.text })))));
     }
     return node;
   });

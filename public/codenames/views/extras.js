@@ -27,15 +27,20 @@ function historyItem(h, mode) {
   const duo = mode === 'duo';
   if (h.type === 'indice') {
     return el('li', { class: 'cn-hist cn-hist--clue' }, [
-      duo ? mark('green') : mark(TEAM_MARK[h.team]),
+      duo ? mark(h.side === 'A' ? 'red' : 'blue') : mark(TEAM_MARK[h.team]),
       el('span', { text: duo ? sideName(h.side) : TEAM_PLURAL[h.team] }),
       el('span', { class: 'cn-hist__clue', text: `${h.word} ${h.count}` })
     ]);
   }
   if (h.type === 'carte') {
     const who = duo ? sideName(h.guesser) : TEAM_PLURAL[h.team];
-    const what = duo && h.color === 'neutre' ? 'passant' : h.color === 'assassin' ? 'ASSASSIN' : `carte ${COLOR_TEXT[h.color]}`;
-    return el('li', { class: 'cn-hist cn-hist--card' }, [mark(COLOR_MARK[h.color]), `${who} révèle `, el('strong', { text: h.word.toUpperCase() }), ` → ${what}`]);
+    const what = duo && h.color === 'neutre' ? 'passant'
+      : h.color === 'assassin' ? 'ASSASSIN'
+        : duo && h.color === 'agent' ? `agent de ${sideName(h.side)}`
+          : `carte ${COLOR_TEXT[h.color]}`;
+    // Duo : un agent trouvé prend la couleur du joueur dont c'est l'agent (le donneur).
+    const kind = duo && h.color === 'agent' ? (h.side === 'A' ? 'red' : 'blue') : COLOR_MARK[h.color];
+    return el('li', { class: 'cn-hist cn-hist--card' }, [mark(kind), `${who} révèle `, el('strong', { text: h.word.toUpperCase() }), ` → ${what}`]);
   }
   if (h.type === 'fin-tour') {
     const text = duo && h.reason === 'neutre' ? 'passant, fin du tour' : (END_TURN[h.reason] || h.reason);

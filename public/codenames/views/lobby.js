@@ -96,9 +96,9 @@ function renderTeams(room) {
     for (const side of ['A', 'B']) {
       const m = players.find((p) => p.side === side);
       const canTake = mine && (!m || m.id !== state.playerId) && (mine.kind === 'joueur' || !m);
-      boxes.push(el('section', { class: 'ds-panel cn-team cn-team--duo', 'aria-label': `Joueur ${side}` }, [
+      boxes.push(el('section', { class: `ds-panel cn-team cn-team--duo cn-team--duo-${side}`, 'aria-label': `Joueur ${side}` }, [
         el('div', { class: 'ds-panel__head' }, [
-          el('h3', { class: 'cn-team__title' }, [mark('green'), `Joueur ${side}`]),
+          el('h3', { class: 'cn-team__title' }, [mark(side === 'A' ? 'red' : 'blue'), `Joueur ${side}`]),
           el('span', { class: 'ds-small ds-faint', text: m ? 'Place prise' : 'Place libre' })
         ]),
         m ? el('ul', { class: 'cn-members' }, [memberRow(m, mode)]) : el('p', { class: 'cn-team__empty ds-small ds-faint', text: 'En attente d’un joueur.' }),

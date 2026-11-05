@@ -70,6 +70,8 @@
 .cn-team--rouge { border-color: rgba(240, 118, 107, .45); }
 .cn-team--bleu { border-color: rgba(111, 168, 255, .45); }
 .cn-team--duo { border-color: rgba(127, 209, 160, .45); }
+.cn-team--duo-A { border-color: rgba(240, 118, 107, .45); }
+.cn-team--duo-B { border-color: rgba(111, 168, 255, .45); }
 .cn-team__title { margin: 0; display: flex; align-items: center; gap: 10px; font-family: var(--font-serif); font-weight: 400; font-size: 26px; line-height: 1; }
 .cn-team__empty { margin: 0; flex: 1; }
 .cn-team__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
@@ -219,7 +221,7 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
 .cn-duo-hint { margin: 0; }
 .cn-action--sudden { border-color: rgba(240, 118, 107, .55); }
 .cn-pill-alert { border-color: var(--c-red); color: var(--c-red); }
-.cn-end__title--victoire { color: var(--c-green); }
+.cn-end__title--victoire { color: var(--c-accent); }
 .cn-end__title--defaite { color: var(--c-text); }
 .cn-card__badge { border-style: dashed; }
 .cn-card.rev .cn-card__badge { border-style: solid; }
@@ -235,6 +237,62 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
   .cn-tool { width: 36px; padding: 0; }
   .cn-tool__label { display: none; }
 }
+
+/* ---------- Duo : couleurs par joueur (A = rouge / rond, B = bleu / losange) ---------- */
+.cn-card .mk.mk-A { width: 9px; height: 9px; border-radius: 50%; background: var(--c-red); }
+.cn-card .mk.mk-B { width: 9px; height: 9px; background: var(--c-blue); transform: rotate(45deg); }
+.cn-card .mk.mk-n { width: 10px; height: 2px; top: 16px; background: var(--c-text-3); }
+.cn-card .mk.mk-x::before { content: '×'; position: absolute; top: -11px; left: -3px; font-size: 22px; line-height: 1; color: var(--c-text); font-weight: 400; letter-spacing: 0; }
+.cn-card .mk.mk-AB { width: 22px; height: 9px; }
+.cn-card .mk.mk-AB::before { content: ''; position: absolute; left: 0; top: 0; width: 9px; height: 9px; border-radius: 50%; background: #fff; }
+.cn-card .mk.mk-AB::after { content: ''; position: absolute; left: 13px; top: 0; width: 8px; height: 8px; background: #fff; transform: rotate(45deg); }
+.cn-card__check { position: absolute; top: 7px; right: 10px; font-size: 15px; font-weight: 700; line-height: 1; color: #fff; letter-spacing: 0; }
+
+/* Face de la clé (non révélée) */
+.cn-card.d-face-agent.own-A { background: var(--c-red-bg); border-color: var(--c-red); }
+.cn-card.d-face-agent.own-B { background: var(--c-blue-bg); border-color: var(--c-blue); }
+.cn-card.d-face-neutre { background: var(--c-neutral-bg); border-color: var(--c-neutral-border); color: var(--c-neutral-text); }
+.cn-card.d-face-assassin { background: #000; border-color: var(--c-assassin-border); }
+
+/* Agent trouvé : plein de la couleur du propriétaire + ✓ */
+.cn-card.d-validated.own-A { background: var(--c-red-revealed); border-color: var(--c-red-revealed); color: #fff; }
+.cn-card.d-validated.own-B { background: var(--c-blue-revealed); border-color: var(--c-blue-revealed); color: #fff; }
+.cn-card.d-validated .mk.mk-A, .cn-card.d-validated .mk.mk-B { background: #fff; }
+
+/* Agent commun aux deux faces : diagonale rouge / bleu, rond + losange */
+.cn-card.d-common { background: linear-gradient(135deg, var(--c-red-revealed) 0 50%, var(--c-blue-revealed) 50% 100%); border-color: #6b4a7a; color: #fff; }
+.cn-card.d-common-tint { background: linear-gradient(135deg, var(--c-red-bg) 0 50%, var(--c-blue-bg) 50% 100%); border-color: #8a7bb0; }
+.cn-card.d-common-tint .mk.mk-AB::before { background: var(--c-red); }
+.cn-card.d-common-tint .mk.mk-AB::after { background: var(--c-blue); }
+
+/* Erreur (passant touché) : beige + tiret, nettement distinct de « validé » */
+.cn-card.d-error { background: var(--c-neutral-revealed); border-color: var(--c-neutral-revealed); color: var(--c-neutral-revealed-text); }
+.cn-card.d-error .mk.mk-n { background: var(--c-neutral-revealed-text); }
+
+/* Retirée du jeu pour cette vue : grisée, pointillée, non cliquable */
+.cn-card.d-retired { background: transparent; border-style: dashed; border-color: #3A3A40; color: var(--c-text-3); opacity: .45; box-shadow: none; }
+.cn-card.d-retired .mk { opacity: .6; }
+
+/* Assassin touché (fin de partie) */
+.cn-card.d-hit { box-shadow: 0 0 0 2px var(--c-red); }
+
+/* Marques « passant pour A / B » */
+.cn-card__badge.own-A { color: var(--c-red); border-color: currentColor; }
+.cn-card__badge.own-B { color: var(--c-blue); border-color: currentColor; }
+.cn-card.d-validated .cn-card__badge, .cn-card.d-common .cn-card__badge { color: #fff; }
+.cn-card.d-end .cn-card__badges { top: auto; bottom: 6px; right: 8px; }
+.cn-card.d-end .cn-card__badge { border-style: solid; background: rgba(0, 0, 0, .35); }
+
+/* Légendes et étiquettes de joueur */
+.cn-legend__check { font-weight: 700; color: var(--c-text); }
+.cn-legend__common { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: linear-gradient(135deg, var(--c-red) 0 50%, var(--c-blue) 50% 100%); flex-shrink: 0; }
+.cn-legend__retired { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px dashed var(--c-text-3); flex-shrink: 0; }
+.cn-team-tag--A, .cn-team-tag--B { display: inline-flex; align-items: center; gap: 6px; }
+.cn-team-tag--A { color: var(--c-red); }
+.cn-team-tag--B { color: var(--c-blue); }
+.cn-role-pill--A { border-color: rgba(240, 118, 107, .55); }
+.cn-role-pill--B { border-color: rgba(111, 168, 255, .55); }
+.cn-duo-hint .ds-mark { margin: 0 2px; vertical-align: middle; }
 
 /* ---------- Fin de manche ---------- */
 .cn-end { border-color: rgba(230, 211, 174, .45); }
