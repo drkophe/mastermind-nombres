@@ -409,3 +409,12 @@ select.ds-field {
 .ds-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .ds-btn--danger-solid { background: var(--c-red); border-color: var(--c-red); color: var(--c-on-accent); font-weight: 600; }
 .ds-btn--danger-solid:hover:not(:disabled) { background: #F38C83; border-color: #F38C83; }
+
+/* ---------- PhaseTint : dégradé de phase (sous le contenu) ---------- */
+.ds-phase-tint { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.ds-phase-tint__layer { position: absolute; inset: 0; opacity: 0; transition: opacity .5s ease; background-repeat: no-repeat; }
+.ds-phase-tint__layer.is-on { opacity: 1; }
+body.ds-has-phase-tint > .ds-container { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .ds-phase-tint__layer { transition: none; }
+}

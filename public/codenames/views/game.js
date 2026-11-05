@@ -3,11 +3,12 @@
  * panneaux latéraux. Le contenu dépend du mode et du rôle réel du joueur.
  */
 import { el, replace, clear, ICONS } from '/assets/ds/dom.js';
+import { setPhaseTint } from '/assets/ds/phase-tint.js';
 import { state, notify, isHost } from '../state.js';
 import { actions } from '../api.js';
 import { renderBoard } from './board.js';
 import { classicCards, classicStatus, classicActionPanel, classicHeader, setRerender } from './classic.js';
-import { duoCards, duoStatus, duoActionPanel, duoHeader, setDuoRerender, DUO_END, duoView } from './duo.js';
+import { duoCards, duoStatus, duoActionPanel, duoHeader, setDuoRerender, DUO_END, duoView, duoPhaseInfo } from './duo.js';
 import { mountSide } from './side.js';
 import { MOBILE_QUERY } from '../chat-state.js';
 import { TEAM_PLURAL, other } from './common.js';
@@ -34,12 +35,13 @@ function build(view) {
   const below = el('div', { class: 'cn-below-board' });
   const main = el('section', { class: 'cn-main', 'aria-label': 'Plateau de jeu' }, [status, timer, actionTop, board, below]);
   const live = el('p', { class: 'sr-only', id: 'cn-live', 'aria-live': 'polite' });
+  const phaseLive = el('p', { class: 'sr-only', id: 'cn-phase-live', 'aria-live': 'polite' });
   const actionSide = el('div', { class: 'cn-action-side' });
   const endSlot = el('div', { class: 'cn-end-slot' });
   const sideExtra = el('div', { class: 'cn-side-extra' });
   const side = el('aside', { class: 'cn-side', 'aria-label': 'Indice et discussion' }, [endSlot, actionSide, sideExtra]);
-  replace(view, [notice, live, el('div', { class: 'cn-columns cn-game' }, [main, side])]);
-  layout = { view, notice, live, status, timer, actionTop, board, below, actionSide, endSlot, sideExtra, lastAnnounce: null };
+  replace(view, [notice, live, phaseLive, el('div', { class: 'cn-columns cn-game' }, [main, side])]);
+  layout = { view, notice, live, phaseLive, lastPhase: null, status, timer, actionTop, board, below, actionSide, endSlot, sideExtra, lastAnnounce: null };
 }
 
 /** Fin de manche : résultat, score cumulé, suite (hôte), invitation aux définitions. */
@@ -135,6 +137,17 @@ export function renderGame(view, header) {
     });
   }
   replace(layout.notice, noticeBanner(room));
+  // Dégradé de phase (Duo seulement) + annonce du changement de phase.
+  if (g.mode === 'duo') {
+    const info = duoPhaseInfo(room);
+    setPhaseTint(info.colors ? { colors: info.colors, intensity: 0.12 } : null);
+    if (info.text !== layout.lastPhase) {
+      layout.lastPhase = info.text;
+      layout.phaseLive.textContent = info.text;
+    }
+  } else {
+    setPhaseTint(null);
+  }
   renderTimer(layout.timer, room.timer, room.status === 'en_cours');
   announce(room);
   replace(header, [...pills, sessionTools(room)]);

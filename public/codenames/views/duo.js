@@ -27,6 +27,32 @@ function names() {
   return { A: sideName('A'), B: sideName('B') };
 }
 
+// ---------- Phase : texte explicite + couleur du dégradé ----------
+
+export const PHASE_COLORS = { indice: '#F5C451', A: '#F0766B', B: '#6FA8FF' };
+
+/**
+ * Phase du point de vue du joueur : texte (ne repose pas sur la couleur),
+ * couleurs du dégradé (null = pas de dégradé), et « à moi d'agir ».
+ */
+export function duoPhaseInfo(room) {
+  const g = room.game;
+  const role = duoRole(room);
+  const me_ = role.side || null;
+  if (room.status !== 'en_cours' || !g) return { text: 'Partie terminée', colors: null, myTurn: false };
+  if (room.paused) return { text: 'Partie en pause', colors: null, myTurn: false };
+  if (g.phase === 'mort-subite') {
+    return { text: me_ ? 'Mort subite : à vous deux de deviner' : 'Mort subite : les deux joueurs devinent', colors: [PHASE_COLORS.A, PHASE_COLORS.B], myTurn: !!me_ };
+  }
+  if (g.phase === 'indice') {
+    const mine = me_ === g.giver;
+    return { text: mine ? 'Vous cherchez un indice' : `${sideName(g.giver)} cherche un indice`, colors: [PHASE_COLORS.indice], myTurn: mine };
+  }
+  const guesser = otherSide(g.giver);
+  const mine = me_ === guesser;
+  return { text: mine ? 'À vous de deviner' : `${sideName(guesser)} devine`, colors: [PHASE_COLORS[guesser]], myTurn: mine };
+}
+
 // ---------- Rôle et vue ----------
 
 export function duoRole(room) {
@@ -201,11 +227,12 @@ export function duoStatus(room) {
       ])
     ]);
   }
-  const main = g.phase === 'mort-subite'
-    ? [el('span', { class: 'cn-sudden-dot', 'aria-hidden': 'true' }), 'Mort subite : plus d’indices, toute erreur est fatale']
-    : g.phase === 'indice'
-      ? [sideMark(g.giver), `Tour ${g.turnNumber} · ${sideName(g.giver)} cherche un indice`]
-      : [sideMark(otherSide(g.giver)), `Tour ${g.turnNumber} · ${sideName(otherSide(g.giver))} devine`];
+  const info = duoPhaseInfo(room);
+  const dot = g.phase === 'mort-subite' ? el('span', { class: 'cn-sudden-dot', 'aria-hidden': 'true' })
+    : g.phase === 'indice' ? el('span', { class: 'cn-phase-dot', 'aria-hidden': 'true' })
+      : sideMark(otherSide(g.giver));
+  const main = [dot, el('strong', { class: `cn-phase-text${info.myTurn ? ' is-mine' : ''}`, text: info.text }),
+    el('span', { class: 'ds-faint', text: g.phase === 'mort-subite' ? '· toute erreur est fatale' : `· tour ${g.turnNumber}` })];
   return el('div', { class: 'cn-statusline' }, [
     el('span', { class: 'cn-statusline__main' }, main),
     el('span', { class: 'cn-statusline__keyinfo' }, [

@@ -294,6 +294,11 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
 .cn-role-pill--B { border-color: rgba(111, 168, 255, .55); }
 .cn-duo-hint .ds-mark { margin: 0 2px; vertical-align: middle; }
 
+/* Phase (Duo) */
+.cn-phase-dot { width: 9px; height: 9px; border-radius: 50%; background: #F5C451; flex-shrink: 0; }
+.cn-phase-text { color: var(--c-text); font-weight: 600; }
+.cn-phase-text.is-mine { color: var(--c-accent); }
+
 /* ---------- Fin de manche ---------- */
 .cn-end { border-color: rgba(230, 211, 174, .45); }
 .cn-end__title { margin: 0; font-family: var(--font-serif); font-weight: 400; font-size: 38px; line-height: 1.05; }
