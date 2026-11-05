@@ -2,10 +2,10 @@
  * Mode Duo : plateau vu depuis SA face de la clé (envoyée par le serveur au seul joueur
  * concerné), jetons de temps, alternance des rôles, mort subite.
  */
-import { el, ICONS } from '/assets/ds/dom.js';
+import { el, ICONS, storage } from '/assets/ds/dom.js';
 import { state, me } from '../state.js';
 import { actions } from '../api.js';
-import { mark, sideName } from './common.js';
+import { mark, sideName, segmented } from './common.js';
 import { legend } from './classic.js';
 import { clueForm, selectionKeyFor } from './clue-form.js';
 
@@ -14,6 +14,33 @@ const WORD = { agent: 'agent', assassin: 'assassin', neutre: 'passant' };
 
 let rerender = () => {};
 export function setDuoRerender(fn) { rerender = fn; }
+
+/**
+ * Affichage de SA face de la clé (« Ma clé ») ou du plateau neutre (« Plateau »),
+ * comme celui des agents en Classique : pratique pour retrouver ses mots sans
+ * confondre les couleurs. Préférence locale, mémorisée dans le navigateur.
+ */
+function keyVisible() {
+  if (state.ui.duoShowKey === undefined) state.ui.duoShowKey = storage.get('cn-duo-cle') !== 'masquee';
+  return state.ui.duoShowKey;
+}
+
+function setKeyVisible(visible) {
+  state.ui.duoShowKey = visible;
+  storage.set('cn-duo-cle', visible ? 'visible' : 'masquee');
+  rerender();
+}
+
+function keyToggle() {
+  const visible = keyVisible();
+  return segmented({
+    label: 'Affichage du plateau',
+    id: 'cn-duo-toggle',
+    options: [['cle', 'Ma clé'], ['plateau', 'Plateau']],
+    value: visible ? 'cle' : 'plateau',
+    onChange: (v) => setKeyVisible(v === 'cle')
+  });
+}
 
 function roleOf(room) {
   const m = me();
@@ -63,7 +90,7 @@ export function duoCards(room) {
     if (g.found[i]) {
       return { word, key: 'agent', revealed: true, label: `${word}, agent trouvé` };
     }
-    const myColor = g.myKey ? g.myKey[i] : null;
+    const myColor = g.myKey && keyVisible() ? g.myKey[i] : null;
     const blockedForGiver = role.kind === 'devine' && g.bystanders[g.giver][i];
     const interactive = selecting && !blockedForGiver;
     const selected = state.ui.selected === i;
@@ -97,9 +124,13 @@ export function duoStatus(room) {
     role.kind === 'spectateur'
       ? el('span', { class: 'cn-statusline__hint', text: 'Les faces de la clé restent secrètes jusqu’à la fin.' })
       : el('span', { class: 'cn-statusline__keyinfo' }, [
-        el('span', { class: 'cn-lock' }, [ICONS.lock()]),
-        el('span', { class: 'ds-small ds-muted', text: 'Votre face' }),
-        legend([['green', 'Agent'], ['neutral', 'Passant'], ['assassin', 'Assassin']])
+        keyVisible()
+          ? el('span', { class: 'cn-statusline__keyinfo' }, [
+            el('span', { class: 'cn-lock' }, [ICONS.lock()]),
+            legend([['green', 'Agent'], ['neutral', 'Passant'], ['assassin', 'Assassin']])
+          ])
+          : el('span', { class: 'ds-small ds-faint', text: 'Clé masquée : plateau neutre' }),
+        keyToggle()
       ])
   ]);
 }
