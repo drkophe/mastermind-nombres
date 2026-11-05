@@ -233,7 +233,8 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
 /* ---------- Colonne latérale : chat, joueurs ---------- */
 .cn-side-extra, .cn-side-extra-box { display: flex; flex-direction: column; gap: 16px; }
 .cn-side-extra-box:empty { display: none; }
-.cn-lobby .cn-side, .cn-game .cn-side-extra { flex: 1; }
+.cn-game .cn-side-extra { flex: 1; }
+.cn-lobby .cn-side .cn-chat { min-height: 360px; }
 .cn-game .cn-side-extra { min-height: 0; }
 .cn-chat { flex: 1; min-height: 320px; max-height: 640px; }
 .cn-chat__tabs .ds-seg__item { gap: 8px; }

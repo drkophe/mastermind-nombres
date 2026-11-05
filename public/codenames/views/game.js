@@ -17,8 +17,10 @@ import { historyPanel, definitionPanel, noticeBanner, showDefinition } from './e
 setRerender(notify);
 setDuoRerender(notify);
 
-const mobile = window.matchMedia(MOBILE_QUERY);
+// Colonnes empilées (mobile et tablette) : le panneau d'action passe au-dessus du plateau.
+const mobile = window.matchMedia('(max-width: 1000px)');
 mobile.addEventListener('change', () => notify());
+window.matchMedia(MOBILE_QUERY).addEventListener('change', () => notify());
 
 let layout = null;
 

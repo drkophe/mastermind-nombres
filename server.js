@@ -17,7 +17,7 @@ const io = socketIo(server, {
 });
 
 // Servir les fichiers statiques
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+app.use(express.static(path.join(__dirname, 'public'), { index: false, redirect: false }));
 
 // ==================== QUESTIONS QUIZ ERP/PPR ====================
 const quizQuestions = [

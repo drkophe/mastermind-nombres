@@ -46,7 +46,8 @@ export function renderBoard(host, cards, boardKey, ariaLabel) {
     if (c.interactive) {
       node = el('button', { ...attrs, type: 'button', 'aria-pressed': c.selected ? 'true' : 'false', onclick: c.onclick });
     } else {
-      node = el('div', { ...attrs, role: 'img', tabindex: c.focusable ? '0' : undefined });
+      // Carte non actionnable : lisible par les lecteurs d'écran, hors de l'ordre de tabulation.
+      node = el('div', { ...attrs, role: 'img' });
     }
     node.appendChild(el('span', { class: 'mk', 'aria-hidden': 'true' }));
     node.appendChild(el('span', { class: 'cn-card__word', text: c.word, 'aria-hidden': 'true' }));
