@@ -40,7 +40,8 @@ function registerCodenames(io, options = {}) {
       emitTo(member.id, 'room:left', { roomId: room.id });
     },
     onMemberDisconnected: (room, member) => hooks.onMemberDisconnected.forEach((fn) => fn(room, member)),
-    onMemberReconnected: (room, member) => hooks.onMemberReconnected.forEach((fn) => fn(room, member))
+    onMemberReconnected: (room, member) => hooks.onMemberReconnected.forEach((fn) => fn(room, member)),
+    onMemberJoined: (room, member) => { if (hooks.onMemberJoined) hooks.onMemberJoined(room, member); }
   });
 
   const packs = options.packs || loadWordPacks();
@@ -51,6 +52,7 @@ function registerCodenames(io, options = {}) {
   hooks.onMemberDisconnected.push((room, member) => match.onMemberDisconnected(room, member));
   hooks.onMemberReconnected.push((room, member) => match.onMemberReconnected(room, member));
   hooks.onMemberRemoved.push((room, member) => match.onMemberRemoved(room, member));
+  hooks.onMemberJoined = (room, member) => match.onMemberJoined(room, member);
   const chat = new ChatService({ scheduler: manager.scheduler });
   const definitions = options.definitions || new DefinitionService();
   const chatSignatures = new Map(); // playerId -> signature du flux d'équipe déjà envoyé
@@ -252,6 +254,8 @@ function registerCodenames(io, options = {}) {
     on('game:next', () => match.next(myRoom().id, playerId));
     on('game:lobby', () => match.toLobby(myRoom().id, playerId));
     on('game:promote', (p) => match.hostPromote(myRoom().id, playerId, p.playerId));
+    on('game:join-team', (p) => { manager.joinTeamMidGame(myRoom().id, playerId, p.team); });
+    on('game:withdraw', () => match.withdraw(myRoom().id, playerId));
 
     if (options.extendSocket) options.extendSocket(socket, { on, myRoom, playerId });
 

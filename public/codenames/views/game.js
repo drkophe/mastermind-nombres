@@ -13,6 +13,7 @@ import { MOBILE_QUERY } from '../chat-state.js';
 import { TEAM_PLURAL, other } from './common.js';
 import { renderTimer } from './timer.js';
 import { historyPanel, definitionPanel, noticeBanner, showDefinition } from './extras.js';
+import { sessionTools, joinPanel } from './session.js';
 
 setRerender(notify);
 setDuoRerender(notify);
@@ -133,19 +134,20 @@ export function renderGame(view, header) {
   replace(layout.notice, noticeBanner(room));
   renderTimer(layout.timer, room.timer, room.status === 'en_cours');
   announce(room);
-  replace(header, pills);
+  replace(header, [...pills, sessionTools(room)]);
   const end = room.status === 'terminee' ? endPanel(room) : null;
+  const join = joinPanel(room);
 
   // Mobile : le panneau d'action (ou de fin) passe au-dessus du plateau pour rester visible.
   if (mobile.matches) {
     clear(layout.actionSide);
     clear(layout.endSlot);
-    replace(layout.actionTop, end || action);
+    replace(layout.actionTop, [end || action, join]);
   } else {
     clear(layout.actionTop);
     replace(layout.endSlot, end);
     replace(layout.actionSide, action);
   }
 
-  mountSide(layout.sideExtra, { context: 'game', extra: [definitionPanel(room), historyPanel(room)] });
+  mountSide(layout.sideExtra, { context: 'game', extra: [mobile.matches ? null : join, definitionPanel(room), historyPanel(room)] });
 }

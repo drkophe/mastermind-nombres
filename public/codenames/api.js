@@ -33,6 +33,8 @@ export const actions = {
   next: () => emit('game:next'),
   toLobby: () => emit('game:lobby'),
   promote: (playerId) => emit('game:promote', { playerId }),
+  joinTeam: (team) => emit('game:join-team', { team }),
+  withdraw: () => emit('game:withdraw'),
   sendChat: (channel, text) => emit('chat:send', { channel, text }),
   definition: (index) => emit('definition:get', { index })
 };

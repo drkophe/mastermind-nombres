@@ -47,6 +47,7 @@ class RoomManager {
     this.onMemberRemoved = options.onMemberRemoved || (() => {});
     this.onMemberDisconnected = options.onMemberDisconnected || (() => {});
     this.onMemberReconnected = options.onMemberReconnected || (() => {});
+    this.onMemberJoined = options.onMemberJoined || (() => {});
     this.memberRoom = new Map(); // playerId -> roomId
   }
 
@@ -104,6 +105,8 @@ class RoomManager {
       spectators: this.spectators(room).length,
       spectatorsAllowed: s.spectatorsAllowed,
       status: room.status === 'attente' ? 'attente' : 'en_cours',
+      // Entrée comme joueur possible : en attente, ou en cours de partie Classique.
+      canJoinAsPlayer: this.players(room).length < maxPlayersFor(s) && (room.status === 'attente' || s.mode === 'classique'),
       details
     };
   }
@@ -157,10 +160,13 @@ class RoomManager {
 
     const playerCount = this.players(room).length;
     const full = playerCount >= maxPlayersFor(room.settings);
+    // En cours de partie, on peut entrer comme agent en Classique (pas en Duo :
+    // les deux places sont liées aux faces de la clé).
+    const canPlayNow = room.status === 'attente' || room.settings.mode === 'classique';
     let kind = 'joueur';
-    if (asSpectator || room.status !== 'attente' || full) {
+    if (asSpectator || !canPlayNow || full) {
       if (!room.settings.spectatorsAllowed && room.members.size > 0) {
-        if (room.status !== 'attente') throw new CodenamesError('Partie en cours et spectateurs non autorisés.');
+        if (!canPlayNow) throw new CodenamesError('Partie Duo en cours et spectateurs non autorisés.');
         if (full) throw new CodenamesError('Le salon est complet.');
         throw new CodenamesError('Les spectateurs ne sont pas autorisés dans ce salon.');
       }
@@ -183,6 +189,7 @@ class RoomManager {
     this.memberRoom.set(member.id, room.id);
     if (kind === 'joueur') this.placeNewPlayer(room, member);
     if (!room.hostId) room.hostId = member.id;
+    this.onMemberJoined(room, member);
     this.touch(room);
     this.changed(room, true);
     return { room, member, rejoined: false };
@@ -390,6 +397,29 @@ class RoomManager {
     this.touch(room);
     this.changed(room, true);
     return room;
+  }
+
+  /**
+   * Classique, pendant une partie : un spectateur rejoint une équipe comme agent.
+   * (En lobby, c'est assign() qui s'en charge.)
+   */
+  joinTeamMidGame(roomId, playerId, team) {
+    const room = this.requireRoom(roomId);
+    if (room.status === 'attente') throw new CodenamesError('Utilisez le lobby pour choisir une équipe.');
+    if (room.settings.mode !== 'classique') throw new CodenamesError('En Duo, impossible de rejoindre une partie en cours.');
+    if (!TEAMS.includes(team)) throw new CodenamesError('Équipe inconnue.');
+    const member = room.members.get(playerId);
+    if (!member) throw new CodenamesError('Vous n’êtes pas dans ce salon.');
+    if (member.kind === 'joueur') throw new CodenamesError('Vous jouez déjà.');
+    if (this.players(room).length >= maxPlayersFor(room.settings)) throw new CodenamesError('Il n’y a plus de place de joueur.');
+    member.kind = 'joueur';
+    member.team = team;
+    member.role = 'agent';
+    member.side = null;
+    this.onMemberJoined(room, member);
+    this.touch(room);
+    this.changed(room, true);
+    return member;
   }
 
   /** Répartition aléatoire équilibrée des équipes et des capitaines (Classique). */

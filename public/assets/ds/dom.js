@@ -109,3 +109,33 @@ export const storage = {
   get(key) { try { return localStorage.getItem(key); } catch { return null; } },
   set(key, value) { try { localStorage.setItem(key, value); } catch { /* indisponible */ } }
 };
+
+/**
+ * Boîte de confirmation (élément <dialog> natif : focus piégé, Échap = annuler).
+ * Renvoie une promesse résolue à true si l'action est confirmée.
+ */
+export function confirmDialog({ title, text, confirmLabel = 'Confirmer', cancelLabel = 'Annuler', danger = false }) {
+  return new Promise((resolve) => {
+    const cancel = el('button', { type: 'button', class: 'ds-btn', value: 'cancel', text: cancelLabel });
+    const ok = el('button', { type: 'button', class: `ds-btn ${danger ? 'ds-btn--danger-solid' : 'ds-btn--primary'}`, value: 'ok', text: confirmLabel });
+    const dialog = el('dialog', { class: 'ds-dialog', 'aria-labelledby': 'ds-dialog-title', 'aria-describedby': 'ds-dialog-text' }, [
+      el('h2', { class: 'ds-dialog__title', id: 'ds-dialog-title', text: title }),
+      el('p', { class: 'ds-dialog__text', id: 'ds-dialog-text', text }),
+      el('div', { class: 'ds-dialog__actions' }, [cancel, ok])
+    ]);
+    const previous = document.activeElement;
+    let result = false;
+    const close = (value) => { result = value; dialog.close(); };
+    cancel.addEventListener('click', () => close(false));
+    ok.addEventListener('click', () => close(true));
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) close(false); });
+    dialog.addEventListener('close', () => {
+      dialog.remove();
+      if (previous && previous.isConnected) previous.focus();
+      resolve(result);
+    });
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    cancel.focus();
+  });
+}

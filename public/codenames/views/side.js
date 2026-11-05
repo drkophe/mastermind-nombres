@@ -175,8 +175,7 @@ function rosterPanel() {
     el('div', { class: 'cn-roster__body' }, [
       ...groups,
       el('div', { class: 'cn-roster__actions' }, [
-        el('button', { class: 'ds-btn ds-btn--small', type: 'button', onclick: copyRoomLink }, [ICONS.link(), 'Copier le lien']),
-        el('button', { class: 'ds-btn ds-btn--small ds-btn--danger', type: 'button', onclick: () => actions.leaveRoom() }, [ICONS.exit(), 'Quitter'])
+        el('button', { class: 'ds-btn ds-btn--small', type: 'button', onclick: copyRoomLink }, [ICONS.link(), 'Copier le lien du salon'])
       ])
     ])
   ]);

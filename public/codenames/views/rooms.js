@@ -73,7 +73,8 @@ function renderMode() {
 
 function roomCard(room) {
   const full = room.players >= room.maxPlayers;
-  const canPlay = room.status === 'attente' && !full;
+  // Le serveur indique si l'on peut entrer comme joueur (en attente, ou Classique en cours).
+  const canPlay = room.canJoinAsPlayer;
   const statusText = room.status === 'attente' ? 'En attente' : 'En cours';
   const join = async (asSpectator) => {
     const name = pseudo();
@@ -97,7 +98,7 @@ function roomCard(room) {
       el('button', {
         class: 'ds-btn ds-btn--primary', disabled: !canPlay, onclick: () => join(false),
         title: canPlay ? '' : full ? 'Salon complet' : 'Partie en cours',
-        text: canPlay ? 'Rejoindre' : full ? 'Complet' : 'En cours'
+        text: canPlay ? (room.status === 'attente' ? 'Rejoindre' : 'Rejoindre la partie') : full ? 'Complet' : 'Duo en cours'
       }),
       room.spectatorsAllowed ? el('button', { class: 'ds-btn', onclick: () => join(true) }, [ICONS.eye(), 'Regarder']) : null
     ])
