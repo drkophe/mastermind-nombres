@@ -279,7 +279,16 @@ function registerCodenames(io, options = {}) {
   }, SESSION_SWEEP_MS);
   if (sweep.unref) sweep.unref();
 
-  return { nsp, manager, match, chat, definitions, hooks, emitTo, viewFor, isOnline: (id) => socketsOf.has(id) };
+  /** Statistiques publiques pour l'accueil : joueurs connectés et salons ouverts. */
+  function liveStats() {
+    let players = 0;
+    for (const room of manager.rooms.values()) {
+      for (const m of room.members.values()) if (m.connected) players++;
+    }
+    return { players, rooms: manager.rooms.size };
+  }
+
+  return { nsp, manager, match, chat, definitions, hooks, liveStats, emitTo, viewFor, isOnline: (id) => socketsOf.has(id) };
 }
 
 module.exports = { registerCodenames };

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jeux Multijoueurs — jouez en temps réel</title>
+  <meta name="description" content="{{GAME_COUNT}} jeux multijoueurs en temps réel à partager avec vos amis, sans inscription ni téléchargement.">
+  <meta name="theme-color" content="#0B0B0D">
+  <link rel="preload" href="/assets/fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/ds/tokens.css">
+  <link rel="stylesheet" href="/assets/ds/components.css">
+  <link rel="stylesheet" href="/home/home.css">
+</head>
+<body class="ds">
+  <div class="ds-container home">
+    <header class="ds-header home-header">
+      <a class="ds-brand" href="/" aria-label="Jeux Multijoueurs — accueil">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="#E6D3AE" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="9" height="9" rx="2"></rect><rect x="16" y="3" width="9" height="9" rx="2"></rect><rect x="3" y="16" width="9" height="9" rx="2"></rect><circle cx="20.5" cy="20.5" r="4.5"></circle></svg>
+        <span class="ds-brand__name">Jeux Multijoueurs</span>
+      </a>
+      <div class="home-header__end">
+        <span class="home-live" id="live-status" aria-live="polite"><span class="ds-live-dot"></span><span id="live-text">Parties en direct</span></span>
+        <span class="ds-pill ds-pill--strong">100&nbsp;% gratuit</span>
+      </div>
+    </header>
+
+    <section class="home-hero">
+      <h1 class="ds-hero">Choisissez votre défi.<br><em>Jouez en temps réel.</em></h1>
+      <p class="home-hero__sub">{{GAME_COUNT}} jeux à partager avec vos amis, sans inscription ni téléchargement.</p>
+    </section>
+
+    <main class="home-grid" aria-label="Jeux disponibles">
+{{GAME_CARDS}}
+    </main>
+
+    <footer class="home-footer">
+      <ul class="home-feats">
+        <li>Multijoueur temps réel</li>
+        <li>Chat intégré</li>
+        <li>Système d’hôte</li>
+        <li>Sans inscription</li>
+      </ul>
+      <span class="ds-faint ds-small">Socket.IO · Node.js · Responsive</span>
+    </footer>
+  </div>
+  <script type="module" src="/home/home.js"></script>
+</body>
+</html>
