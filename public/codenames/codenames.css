@@ -190,6 +190,7 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
 
 /* ---------- Panneaux d'action ---------- */
 .cn-action-top:empty, .cn-action-side:empty, .cn-end-slot:empty { display: none; }
+.cn-action-top { display: flex; flex-direction: column; gap: 14px; }
 .cn-team-tag { font-size: var(--fs-label); color: var(--c-text-2); }
 .cn-team-tag--rouge { color: var(--c-red); }
 .cn-team-tag--bleu { color: var(--c-blue); }
@@ -222,6 +223,18 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
 .cn-end__title--defaite { color: var(--c-text); }
 .cn-card__badge { border-style: dashed; }
 .cn-card.rev .cn-card__badge { border-style: solid; }
+
+/* ---------- Session : outils d'en-tête, rejoindre en cours de partie ---------- */
+.cn-tools { display: inline-flex; gap: 6px; padding-left: 12px; margin-left: 4px; border-left: 1px solid var(--c-border); }
+.cn-tool { height: 36px; }
+.cn-join__buttons { display: flex; flex-direction: column; gap: 8px; }
+.cn-join__buttons .ds-btn { justify-content: flex-start; }
+.cn-join { border-color: rgba(230, 211, 174, .45); }
+#cn-duo-toggle .ds-seg__item { padding: 5px 12px; }
+@media (max-width: 1200px) {
+  .cn-tool { width: 36px; padding: 0; }
+  .cn-tool__label { display: none; }
+}
 
 /* ---------- Fin de manche ---------- */
 .cn-end { border-color: rgba(230, 211, 174, .45); }
@@ -339,6 +352,8 @@ button.cn-card.is-definable:hover { transform: translateY(-2px); border-color: v
   .cn-header .ds-pill { padding: 5px 10px; gap: 6px; font-size: 12px; }
   .cn-header .ds-pill b { font-size: 18px; }
   .cn-role-pill .ds-faint { display: none; }
+  .cn-tools { padding-left: 0; margin-left: 0; border-left: 0; }
+  .cn-tool { width: 32px; height: 32px; }
   .cn-teams { grid-template-columns: minmax(0, 1fr); }
   .cn-side { max-width: none; }
   .cn-start { width: 100%; }

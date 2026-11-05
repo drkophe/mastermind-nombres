@@ -345,6 +345,40 @@ class MatchController {
     this.refreshPresence(room);
   }
 
+  /** Arrivée d'un joueur en cours de partie : peut débloquer une promotion de capitaine. */
+  onMemberJoined(room, member) {
+    if (member.kind === 'joueur' && room.status === 'en_cours') this.refreshPresence(room);
+  }
+
+  /**
+   * Un joueur se retire de la manche en restant dans le salon (il devient spectateur).
+   * Classique : un capitaine est remplacé par un agent. Duo : la partie s'arrête.
+   */
+  withdraw(roomId, actorId) {
+    const { room, member } = this.context(roomId, actorId);
+    if (room.status === 'attente') throw new CodenamesError('Utilisez le lobby pour devenir spectateur.');
+    if (member.kind !== 'joueur') throw new CodenamesError('Vous êtes déjà spectateur.');
+    const wasCaptain = member.role === 'capitaine';
+    const team = member.team;
+    const playing = room.status === 'en_cours' && room.game;
+    member.kind = 'spectateur';
+    member.team = null;
+    member.side = null;
+    member.role = 'agent';
+    if (playing && room.game.mode === 'duo') {
+      duo.abort(room.game);
+      room.game.history.push({ type: 'info', text: `${member.name} s’est retiré(e) de la partie.` });
+      this.endRound(room);
+    } else if (playing) {
+      room.game.history.push({ type: 'info', text: `${member.name} s’est retiré(e) de la manche.` });
+      if (wasCaptain) this.autoPromote(room, team);
+      this.refreshPresence(room);
+      this.syncTimer(room);
+    }
+    this.manager.touch(room);
+    this.manager.changed(room, true);
+  }
+
   /** Départ définitif (bouton « Quitter » ou délai dépassé). */
   onMemberRemoved(room, member) {
     if (member.kind !== 'joueur' || room.status !== 'en_cours' || !room.game) return;

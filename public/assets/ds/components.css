@@ -391,3 +391,21 @@ select.ds-field {
 .ds-details > summary::-webkit-details-marker { display: none; }
 .ds-details > summary::after { content: ''; width: 8px; height: 8px; border-right: 1.5px solid var(--c-text-3); border-bottom: 1.5px solid var(--c-text-3); transform: rotate(45deg); transition: transform var(--t-fast) var(--ease); margin-right: 4px; }
 .ds-details[open] > summary::after { transform: rotate(-135deg); }
+
+/* ---------- Boîte de confirmation ---------- */
+.ds-dialog {
+  width: min(92vw, 440px);
+  padding: 24px;
+  border-radius: var(--r-panel);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, .6);
+}
+.ds-dialog::backdrop { background: rgba(0, 0, 0, .6); }
+.ds-dialog[open] { animation: ds-toast-in var(--t-base) var(--ease); }
+.ds-dialog__title { margin: 0 0 8px; font-family: var(--font-serif); font-weight: 400; font-size: 28px; line-height: 1.1; }
+.ds-dialog__text { margin: 0 0 20px; color: var(--c-text-2); line-height: 1.5; font-size: var(--fs-body); }
+.ds-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.ds-btn--danger-solid { background: var(--c-red); border-color: var(--c-red); color: var(--c-on-accent); font-weight: 600; }
+.ds-btn--danger-solid:hover:not(:disabled) { background: #F38C83; border-color: #F38C83; }
