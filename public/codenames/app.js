@@ -10,6 +10,7 @@ import { renderRooms } from './views/rooms.js';
 import { renderLobby } from './views/lobby.js';
 import { renderGame } from './views/game.js';
 import { onChatHistory, onChatMessage, resetChat } from './chat-state.js';
+import { unmountSide } from './views/side.js';
 
 let currentView = null;
 
@@ -112,7 +113,7 @@ function render() {
     document.body.dataset.view = name;
     currentView = name;
   }
-  if (name === 'rooms') renderRooms(view, header);
+  if (name === 'rooms') { unmountSide(); renderRooms(view, header); }
   else if (name === 'lobby') renderLobby(view, header);
   else renderGame(view, header);
   document.title = room ? `${room.name} — Codenames` : 'Codenames — Jeux Multijoueurs';

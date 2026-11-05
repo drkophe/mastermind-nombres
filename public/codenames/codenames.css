@@ -215,12 +215,58 @@ button.cn-card.sel:hover { transform: translateY(-3px); }
 .cn-end__title--bleu { color: var(--c-blue); }
 .cn-end__reason { margin: 0; line-height: 1.5; }
 
+/* ---------- Colonne latérale : chat, joueurs ---------- */
+.cn-side-extra, .cn-side-extra-box { display: flex; flex-direction: column; gap: 16px; }
+.cn-side-extra-box:empty { display: none; }
+.cn-lobby .cn-side, .cn-game .cn-side-extra { flex: 1; }
+.cn-game .cn-side-extra { min-height: 0; }
+.cn-chat { flex: 1; min-height: 320px; max-height: 640px; }
+.cn-chat__tabs .ds-seg__item { gap: 8px; }
+.cn-chat__tabs .ds-seg__item[aria-selected="true"] .ds-badge { background: var(--c-on-accent); color: var(--c-accent); }
+.cn-chat__hint { margin: -4px 0 0; }
+.ds-chat__msgs:focus-visible { outline-offset: 4px; border-radius: 8px; }
+.cn-drawer-close { display: none; }
+
+.cn-roster > summary { min-height: 24px; }
+.cn-roster__body { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+.cn-roster__group { display: flex; flex-direction: column; gap: 6px; }
+.cn-roster__title { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-label); color: var(--c-text-2); }
+.cn-roster__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.cn-roster__row { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: var(--fs-small); }
+.cn-roster__row.is-offline .cn-member__name { color: var(--c-text-3); }
+.cn-roster__row .cn-role { margin-left: auto; }
+.cn-roster__actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--c-border); }
+
+/* Tiroir de discussion (mobile) */
+.cn-drawer {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+  height: min(82vh, 640px);
+  padding: 12px 12px max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  animation: cn-sheet-in var(--t-base) var(--ease);
+}
+.cn-drawer .cn-chat { flex: 1; max-height: none; min-height: 0; border-radius: var(--r-panel); box-shadow: 0 -12px 40px rgba(0, 0, 0, .5); }
+.cn-drawer .cn-drawer-close { display: inline-flex; }
+@keyframes cn-sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.cn-fab .ds-badge { margin-left: 2px; }
+body.cn-drawer-open { overflow: hidden; }
+body[data-view="rooms"] .cn-fab { display: none; }
+
+/* Desktop : le plateau occupe la hauteur visible, la colonne latérale défile à part */
+@media (min-width: 701px) {
+  .cn-game { align-items: flex-start; }
+  .cn-game .cn-main { height: calc(100dvh - 116px); min-height: 520px; position: sticky; top: 12px; }
+  .cn-game .cn-side { position: sticky; top: 12px; height: calc(100dvh - 116px); min-height: 520px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-bottom: 2px; }
+  .cn-game .cn-chat { min-height: 300px; max-height: none; }
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .cn-home { grid-template-columns: minmax(0, 1fr); }
   .cn-create { position: static; }
 }
 @media (max-width: 700px) {
+  .cn-view { padding-bottom: 72px; } /* place pour le bouton flottant */
   .cn-board { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: none; grid-auto-rows: 68px; gap: 8px; min-height: 0; }
   .cn-card { min-height: 0; padding: 8px 6px; font-size: 12px; letter-spacing: .05em; }
   .cn-card.is-long { font-size: 10.5px; letter-spacing: .02em; }
